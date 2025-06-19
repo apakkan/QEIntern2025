@@ -1,0 +1,23 @@
+services:
+  app:
+    build: .
+    depends_on:
+      - db
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/mydb
+    volumes:
+      - .:/app
+ 
+  db:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: mydb
+    ports:
+      - "5444:5433"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data  # Persistent volume
+ 
+volumes:
+  postgres_data:  # Named volume for persistence
