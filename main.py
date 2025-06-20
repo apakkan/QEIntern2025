@@ -1,5 +1,6 @@
 from qtest_db import connect_db, create_tables, insert_requirement, get_qtest_data
-from rag_utils import insert_refined_requirement
+from rag_utils import insert_refined_requirement, find_similar_requirements
+from embedding_utils import get_embedding
 
 def main():
     conn = connect_db()
@@ -27,7 +28,7 @@ def main():
     )
     print("Inserted Sample Requirement")
 
-    # 2. Insert a refined version of that requirement
+    # Insert a refined version of that requirement
     insert_refined_requirement(
         conn,
         requirement_id=1,
@@ -41,6 +42,14 @@ def main():
         embedding=[0.1] * 1536  # Example embedding
     )
     print("Inserted Sample Refined Requirement")
+
+    # --- Test RAG retrieval ---
+    query = "Verify applicant identity using government id"
+    query_embedding = get_embedding(query)
+    results = find_similar_requirements(conn, query_embedding, top_k=3)
+    print("\nTop 3 similar requirements:")
+    for row in results:
+        print(f"ID: {row[0]}, Title: {row[1]}, Distance: {row[3]}")
 
     conn.close()
 

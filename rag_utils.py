@@ -34,3 +34,21 @@ def insert_refined_requirement(
     )
     conn.commit()
     cursor.close()
+
+def find_similar_requirements(conn, query_embedding, top_k=3):
+    """
+    Returns the top_k most similar requirements using pgvector.
+    """
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT id, title, description, embedding <-> %s AS distance
+        FROM requirements
+        ORDER BY embedding <-> %s
+        LIMIT %s
+        """,
+        (query_embedding, query_embedding, top_k)
+    )
+    results = cursor.fetchall()
+    cursor.close()
+    return results
