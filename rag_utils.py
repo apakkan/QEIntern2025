@@ -13,7 +13,7 @@ def insert_refined_requirement(
     cursor = conn.cursor()
     cursor.execute(
         """
-        INSERT INTO RefinedRequirements (
+        INSERT INTO refinedrequirements (
             requirement_id, user_persona, user_story, functionality, description,
             release, related_story, business_priority, embedding
         ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
@@ -36,15 +36,12 @@ def insert_refined_requirement(
     cursor.close()
 
 def find_similar_requirements(conn, query_embedding, top_k=3):
-    """
-    Returns the top_k most similar requirements using pgvector.
-    """
     cursor = conn.cursor()
     cursor.execute(
         """
-        SELECT id, title, description, embedding <-> %s AS distance
+        SELECT id, title, description, embedding <-> %s::vector AS distance
         FROM requirements
-        ORDER BY embedding <-> %s
+        ORDER BY embedding <-> %s::vector
         LIMIT %s
         """,
         (query_embedding, query_embedding, top_k)

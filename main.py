@@ -45,6 +45,7 @@ def main():
 
     # --- Test RAG retrieval ---
     query = "Verify applicant identity using government id"
+    print(f"\nQuery requirement: {query}")
     query_embedding = get_embedding(query)
     results = find_similar_requirements(conn, query_embedding, top_k=3)
     print("\nTop 3 similar requirements:")

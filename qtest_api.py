@@ -81,32 +81,4 @@ def create_qtest_testcase(conn, name, description, requirement_id=None):
         print(f"Failed to create test case in qTest: {response.status_code} {response.text}")
         return None
 
-def insert_refined_requirement(
-    conn,
-    requirement_id,
-    user_persona,
-    user_story,
-    functionality,
-    description,
-    release,
-    related_story,
-    business_priority,
-    embedding
-):
-    cursor = conn.cursor()
-    cursor.execute(
-        """
-        INSERT INTO RefinedRequirements (
-            requirement_id, user_persona, user_story, functionality, description,
-            release, related_story, business_priority, embedding
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """,
-        (
-            requirement_id, user_persona, user_story, functionality, description,
-            release, related_story, business_priority, embedding
-        )
-    )
-    conn.commit()
-    cursor.close()
-    print("Inserted into RefinedRequirements.")
 
