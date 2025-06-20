@@ -1,0 +1,23 @@
+services:
+  app:
+    build: .
+    depends_on:
+      - shivanidb
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5434/mydb
+    volumes:
+      - .:/app
+ 
+  shivanidb:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: mydb
+    ports:
+      - "5434:5434"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data 
+ 
+volumes:
+  postgres_data:  
