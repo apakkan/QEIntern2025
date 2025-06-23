@@ -1,5 +1,8 @@
 import psycopg2
 import os
+from qtest_db import connect_db
+from embedding_utils import get_embedding
+from rag_utils import find_similar_requirements
 
 def query_postgres(sql_query: str):
     conn = psycopg2.connect(
@@ -15,3 +18,13 @@ def query_postgres(sql_query: str):
     cur.close()
     conn.close()
     return rows
+
+def vector_search_tool(query: str, top_k: int = 3):
+    conn = connect_db()
+    embedding = get_embedding(query)
+    results = find_similar_requirements(conn, embedding, top_k=top_k)
+    conn.close()
+    return [
+        {"id": row[0], "title": row[1], "description": row[2], "distance": row[3]}
+        for row in results
+    ]
