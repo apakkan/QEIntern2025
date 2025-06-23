@@ -1,6 +1,6 @@
-from qtest_db import connect_db, create_tables, insert_requirement, get_qtest_data
-from rag_utils import insert_refined_requirement, find_similar_requirements
-from embedding_utils import get_embedding
+from database.qtest_db import connect_db, create_tables, insert_requirement, get_qtest_data
+from database.rag_utils import insert_refined_requirement, find_similar_requirements
+from database.embedding_utils import get_embedding
 
 def main():
     conn = connect_db()

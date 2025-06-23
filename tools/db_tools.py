@@ -1,8 +1,8 @@
 import psycopg2
 import os
-from qtest_db import connect_db
-from embedding_utils import get_embedding
-from rag_utils import find_similar_requirements
+from database.qtest_db import connect_db
+from database.embedding_utils import get_embedding
+from database.rag_utils import find_similar_requirements
 
 def query_postgres(sql_query: str):
     conn = psycopg2.connect(

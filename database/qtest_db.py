@@ -2,7 +2,7 @@ import time
 import psycopg2
 import os
 import requests
-from embedding_utils import get_embedding
+from database.embedding_utils import get_embedding
 
 def connect_db(retries=5, delay=3):
     for i in range(retries):
@@ -135,44 +135,68 @@ def insert_defects(conn, defects):
     conn.commit()
     cursor.close()
 
-def get_qtest_data():
-    url = os.environ.get("QTEST_API_URL")
+def fetch_qtest_entities(api_url_env, entity_name, sort_param="id"):
+    url = os.environ.get(api_url_env)
     api_key = os.environ.get("QTEST_API_KEY")
     headers = {"Authorization": f"Bearer {api_key}"}
-    response = requests.get(url, headers=headers)
-    if response.status_code == 200:
+    all_data = []
+    seen_ids = set()
+    page = 1
+    page_size = 20
+    MAX_PAGES = 100
+
+    while page <= MAX_PAGES:
+        params = {"page": page, "pageSize": page_size}
+        # Only add sort if supported by the endpoint
+        if sort_param:
+            params["sort"] = sort_param
+        response = requests.get(url, headers=headers, params=params)
+        if response.status_code != 200:
+            print(f"Error fetching qTest {entity_name}: {response.status_code}")
+            break
         data = response.json()
-        print("Sample qTest API data:", data[:1] if isinstance(data, list) else data)
-        return data
+        if not data or (isinstance(data, list) and len(data) == 0):
+            break
+        if not isinstance(data, list):
+            print(f"qTest API: received non-list response for {entity_name}:", data)
+            break
+
+        new_count = 0
+        for item in data:
+            item_id = item.get("id")
+            if item_id is not None and item_id not in seen_ids:
+                all_data.append(item)
+                seen_ids.add(item_id)
+                new_count += 1
+
+        print(f"Fetched page {page}, got {len(data)} {entity_name}, {new_count} new.")
+        if len(data) < page_size or new_count == 0:
+            break
+        page += 1
     else:
-        print(f"Error fetching qTest data: {response.status_code}")
-        return None
-    
+        print(f"Warning: Reached maximum page limit for {entity_name}. Stopping fetch.")
+
+    print(f"Total unique {entity_name} fetched: {len(all_data)}")
+    return all_data
+
+def get_qtest_requirements():
+    return fetch_qtest_entities("QTEST_REQUIREMENTS_API_URL", "requirements", sort_param=None)  # requirements may not support sort
 
 def get_qtest_testcases():
-    return [
-        {"requirement_id": 1, "title": "Upload file test", "steps": "Step 1: ...", "expected_result": "File uploaded"},
-        {"requirement_id": 2, "title": "Download file test", "steps": "Step 1: ...", "expected_result": "File downloaded"}
-    ]
+    return fetch_qtest_entities("QTEST_TESTCASES_API_URL", "testcases", sort_param="id")
 
 def get_qtest_testruns():
-    return [
-        {"testcase_id": 1, "status": "Passed", "executed_at": "2024-06-19 10:00:00"},
-        {"testcase_id": 2, "status": "Failed", "executed_at": "2024-06-19 11:00:00"}
-    ]
+    return fetch_qtest_entities("QTEST_TESTRUNS_API_URL", "testruns", sort_param="id")
 
 def get_qtest_defects():
-    return [
-        {"requirement_id": 1, "description": "Upload button missing", "status": "Open"},
-        {"requirement_id": 2, "description": "Download fails on large files", "status": "In Progress"}
-    ]
+    return fetch_qtest_entities("QTEST_DEFECTS_API_URL", "defects", sort_param="id")
 
 if __name__ == "__main__":
     conn = connect_db()
     if conn:
         create_tables(conn)
 
-        requirements = get_qtest_data()
+        requirements = get_qtest_requirements()
         if requirements:
             for req in requirements:
                 insert_requirement(
