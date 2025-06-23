@@ -6,7 +6,9 @@ import pandas as pd
 from agno.agent import Agent
 from agno.tools import tool
 from agno import memory
-
+import sys
+sys.path.append('/home/azureuser/main/QEIntern2025')
+from tools.db_tools import query_postgres
 
 load_dotenv()
 
@@ -25,7 +27,7 @@ def load_requirements(file_path="requirements.xlsx"):
     df = pd.read_excel(file_path)
     return df[['story_number', 'user_story','description']].dropna().to_dict(orient='records')
 
-
+@tool
 def refine_requirement(raw_requirement: list) -> list:
     formatted = "\n".join([
         f"{s['story_number']}: {s['user_story']} - {s['description']}"
@@ -51,6 +53,8 @@ def refine_requirement(raw_requirement: list) -> list:
     )
     return response.choices[0].message.content
 
+
+@tool
 def generate_test_cases_tool(raw_requirement: list) -> list:
     formatted = "\n".join([
         f"{s['story_number']}: {s['user_story']} - {s['description']}"
@@ -64,7 +68,7 @@ def generate_test_cases_tool(raw_requirement: list) -> list:
                         "- test_cases: list of suggested test cases\n"
                         "- edge_cases: edge or tricky inputs\n"
                         "- testability: yes/no and explanation\n\n"
-                        "Respond in JSON array format, one object per story, and include the story_number in each object.")
+                        "Respond in JSON array format, one object per story, and include the story_number in each object."),
          },
         { "role": "user", "content": formatted }
     ]
@@ -100,8 +104,8 @@ class TestAgent(Agent):
 
 
 if __name__ == "__main__":
-    raw_requirements = load_requirements("requirements.xlsx")
-
+   # raw_requirements = load_requirements("requirements.xlsx")
+    raw_requirements = query_postgres()
 
     req_agent = RequirementAgent()
     req_output = req_agent.run(raw_requirements=raw_requirements)
