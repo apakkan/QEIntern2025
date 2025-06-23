@@ -3,6 +3,9 @@ import os
 from openai import AzureOpenAI
 from dotenv import load_dotenv
 import pandas as pd
+from agno.agent import Agent
+from agno.tools import tool
+from agno import memory
 
 
 load_dotenv()
@@ -23,7 +26,7 @@ def load_requirements(file_path="requirements.xlsx"):
     return df[['story_number', 'user_story','description']].dropna().to_dict(orient='records')
 
 
-def refine_requirement(raw_requirement):
+def refine_requirement(raw_requirement: list) -> list:
     formatted = "\n".join([
         f"{s['story_number']}: {s['user_story']} - {s['description']}"
         for s in raw_requirement
@@ -54,11 +57,26 @@ def save_to_excel(json_output, path="output.xlsx"):
     df.to_excel(path, index=False)
     print(f"Output saved to {path}")
 
+class RequirementAgent(Agent):
+    tools = [refine_requirement]
+    memory = memory.Memory(memory="")
+
+    def run(self, **kwargs):
+        raw_requirements = kwargs["raw_requirements"]
+        return refine_requirement(raw_requirements)
+
 
 
 
 if __name__ == "__main__":
-    requirements = load_requirements("requirements.xlsx")
-    response_json = refine_requirement(requirements)
-    print(response_json)
-    save_to_excel(response_json, "output.xlsx")
+    raw_requirements = load_requirements("requirements.xlsx")
+    agent = RequirementAgent()
+    result = agent.run(raw_requirements=raw_requirements)
+
+    save_to_excel(result, "output.xlsx")
+    parsed = json.loads(result)
+    for story in parsed:
+        print(f"Story #{story['story_number']}")
+        print(f"  Functionality: {story['functionality']}")
+        print(f"  Related stories: {story['related_stories']}")
+        print("-" * 40)
