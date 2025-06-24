@@ -6,6 +6,7 @@ import ItemDetailsPage from './pages/ItemDetailsPage';
 import RelatedStoriesPage from './pages/RelatedStoriesPage';
 
 //funciton for the app
+// comment
 function App() {
   return (
     <Router>
