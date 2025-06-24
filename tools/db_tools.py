@@ -3,7 +3,9 @@ import os
 from database.qtest_db import connect_db
 from database.embedding_utils import get_embedding
 from database.rag_utils import find_similar_requirements
+from agno.tools import tool
 
+@tool
 def query_postgres(sql_query: str):
     conn = psycopg2.connect(
         database=os.environ.get("POSTGRES_DB", "mydb"),

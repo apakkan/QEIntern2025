@@ -4,7 +4,18 @@ import os
 import requests
 from database.embedding_utils import get_embedding
 
-def connect_db(retries=5, delay=3):
+# ==== Global Constants ====
+OPENAI_EMBEDDING_DIM = 1536  # Dimension of OpenAI embeddings
+DEFAULT_PAGE_SIZE = 20       # Default page size for API pagination
+MAX_PAGES = 100              # Max number of pages to fetch from API
+RETRY_COUNT = 5              # Number of DB connection retries
+RETRY_DELAY = 3              # Delay (seconds) between DB connection retries
+
+# ==== Database Connection ====
+def connect_db(retries=RETRY_COUNT, delay=RETRY_DELAY):
+    """
+    Connect to the PostgreSQL database with retry logic.
+    """
     for i in range(retries):
         try:
             conn = psycopg2.connect(
@@ -23,16 +34,20 @@ def connect_db(retries=5, delay=3):
             else:
                 return None
 
+# ==== Table Creation ====
 def create_tables(conn):
+    """
+    Create all necessary tables if they do not exist.
+    """
     cursor = conn.cursor()
     cursor.execute("CREATE EXTENSION IF NOT EXISTS vector;")
-    cursor.execute("""
+    cursor.execute(f"""
         CREATE TABLE IF NOT EXISTS requirements (
             id INTEGER PRIMARY KEY,
             title TEXT NOT NULL,
             description TEXT,
             status TEXT,
-            embedding vector(1536)
+            embedding vector({OPENAI_EMBEDDING_DIM})
         );
     """)
     cursor.execute("""
@@ -60,7 +75,7 @@ def create_tables(conn):
             status TEXT
         );
     """)
-    cursor.execute("""
+    cursor.execute(f"""
         CREATE TABLE IF NOT EXISTS refinedrequirements (
             id SERIAL PRIMARY KEY,
             requirement_id INTEGER REFERENCES requirements(id) UNIQUE,
@@ -71,14 +86,18 @@ def create_tables(conn):
             release TEXT,
             related_story TEXT,
             business_priority TEXT,
-            embedding vector(1536)
+            embedding vector({OPENAI_EMBEDDING_DIM})
         );
     """)
     conn.commit()
     cursor.close()
     print("Tables created successfully")
 
+# ==== Insert Functions ====
 def insert_requirement(conn, req_id, title, description, status):
+    """
+    Insert or update a requirement with embedding.
+    """
     embedding = get_embedding(f"{title} {description}")
     cursor = conn.cursor()
     cursor.execute(
@@ -97,53 +116,87 @@ def insert_requirement(conn, req_id, title, description, status):
     cursor.close()
 
 def insert_testcases(conn, testcases):
+    """
+    Bulk insert test cases.
+    """
     cursor = conn.cursor()
-    for tc in testcases:
-        cursor.execute(
-            """
-            INSERT INTO testcases (requirement_id, title, steps, expected_result)
-            VALUES (%s, %s, %s, %s)
-            """,
-            (tc.get("requirement_id"), tc.get("title"), tc.get("steps"), tc.get("expected_result"))
+    data = [
+        (
+            tc.get("requirement_id"),
+            tc.get("title"),
+            tc.get("steps"),
+            tc.get("expected_result")
         )
+        for tc in testcases
+    ]
+    cursor.executemany(
+        """
+        INSERT INTO testcases (requirement_id, title, steps, expected_result)
+        VALUES (%s, %s, %s, %s)
+        """,
+        data
+    )
     conn.commit()
     cursor.close()
 
 def insert_testruns(conn, testruns):
+    """
+    Bulk insert test runs.
+    """
     cursor = conn.cursor()
-    for tr in testruns:
-        cursor.execute(
-            """
-            INSERT INTO testruns (testcase_id, status, executed_at)
-            VALUES (%s, %s, %s)
-            """,
-            (tr.get("testcase_id"), tr.get("status"), tr.get("executed_at"))
+    data = [
+        (
+            tr.get("testcase_id"),
+            tr.get("status"),
+            tr.get("executed_at")
         )
+        for tr in testruns
+    ]
+    cursor.executemany(
+        """
+        INSERT INTO testruns (testcase_id, status, executed_at)
+        VALUES (%s, %s, %s)
+        """,
+        data
+    )
     conn.commit()
     cursor.close()
 
 def insert_defects(conn, defects):
+    """
+    Bulk insert defects.
+    """
     cursor = conn.cursor()
-    for defect in defects:
-        cursor.execute(
-            """
-            INSERT INTO defects (requirement_id, description, status)
-            VALUES (%s, %s, %s)
-            """,
-            (defect.get("requirement_id"), defect.get("description"), defect.get("status"))
+    data = [
+        (
+            defect.get("requirement_id"),
+            defect.get("description"),
+            defect.get("status")
         )
+        for defect in defects
+    ]
+    cursor.executemany(
+        """
+        INSERT INTO defects (requirement_id, description, status)
+        VALUES (%s, %s, %s)
+        """,
+        data
+    )
     conn.commit()
     cursor.close()
 
+# ==== qTest API Fetching ====
 def fetch_qtest_entities(api_url_env, entity_name, sort_param="id"):
+    """
+    Fetch paginated entities from the qTest API.
+    """
     url = os.environ.get(api_url_env)
     api_key = os.environ.get("QTEST_API_KEY")
     headers = {"Authorization": f"Bearer {api_key}"}
     all_data = []
     seen_ids = set()
     page = 1
-    page_size = 20
-    MAX_PAGES = 100
+    page_size = DEFAULT_PAGE_SIZE
 
     while page <= MAX_PAGES:
         params = {"page": page, "pageSize": page_size}
@@ -180,22 +233,37 @@ def fetch_qtest_entities(api_url_env, entity_name, sort_param="id"):
     return all_data
 
 def get_qtest_requirements():
+    """
+    Fetch requirements from qTest.
+    """
     return fetch_qtest_entities("QTEST_REQUIREMENTS_API_URL", "requirements", sort_param=None)  # requirements may not support sort
 
 def get_qtest_testcases():
+    """
+    Fetch test cases from qTest.
+    """
     return fetch_qtest_entities("QTEST_TESTCASES_API_URL", "testcases", sort_param="id")
 
 def get_qtest_testruns():
+    """
+    Fetch test runs from qTest.
+    """
     return fetch_qtest_entities("QTEST_TESTRUNS_API_URL", "testruns", sort_param="id")
 
 def get_qtest_defects():
+    """
+    Fetch defects from qTest.
+    """
     return fetch_qtest_entities("QTEST_DEFECTS_API_URL", "defects", sort_param="id")
 
+# ==== Main Execution Block ====
 if __name__ == "__main__":
+    # Connect to the database
     conn = connect_db()
     if conn:
         create_tables(conn)
 
+        # Fetch and insert requirements
         requirements = get_qtest_requirements()
         if requirements:
             for req in requirements:
@@ -207,14 +275,17 @@ if __name__ == "__main__":
                     status=req.get("status", "New")
                 )
 
+        # Fetch and insert test cases
         testcases = get_qtest_testcases()
         if testcases:
             insert_testcases(conn, testcases)
 
+        # Fetch and insert test runs
         testruns = get_qtest_testruns()
         if testruns:
             insert_testruns(conn, testruns)
 
+        # Fetch and insert defects
         defects = get_qtest_defects()
         if defects:
             insert_defects(conn, defects)
