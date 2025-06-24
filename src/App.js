@@ -7,6 +7,7 @@ import RelatedStoriesPage from './pages/RelatedStoriesPage';
 
 //funciton for the app
 // comment
+// new comment
 function App() {
   return (
     <Router>
