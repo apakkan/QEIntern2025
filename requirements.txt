@@ -1,4 +1,8 @@
+openai
+python-dotenv
+pandas
+openpyxl
+agno
 psycopg2-binary
 requests
 sqlalchemy
-openai
