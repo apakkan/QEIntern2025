@@ -17,7 +17,7 @@ services:
       - OPENAI_EMBEDDING_API_KEY=AwsRTvwdLk24XVKlRT8TPB258rI6PTgQrw0SZXHFLK2EtUj4lCmuJQQJ99BFACYeBjFXJ3w3AAABACOGds1q
       - OPENAI_EMBEDDING_API_BASE=https://qa-interns-openai-inst.openai.azure.com/openai/deployments/1-text-embedding-ada-002/embeddings?api-version=2023-05-15
       - OPENAI_EMBEDDING_API_VERSION=2023-05-15
-      - OPENAI_EMBEDDING_DEPLOYMENT=text-embedding-ada-002
+      - OPENAI_EMBEDDING_DEPLOYMENT=${OPENAI_EMBEDDING_DEPLOYMENT}
       - QTEST_REQUIREMENTS_API_URL=https://sapcoestory.qtestnet.com/api/v3/projects/131167/requirements
       - QTEST_TESTCASES_API_URL=https://sapcoestory.qtestnet.com/api/v3/projects/131167/test-cases
       - QTEST_TESTRUNS_API_URL=https://sapcoestory.qtestnet.com/api/v3/projects/131167/test-runs
@@ -28,7 +28,7 @@ services:
       - PYTHONPATH=/app  # Ensure the app directory is in the Python path
     volumes:
       - .:/app
-    command: python test/test_query_postgres.py  # Command to run the application
+    command: tail -f /dev/null  # Keep the container running for interactive work
 
   maindb:
     image: pgvector/pgvector:pg17
