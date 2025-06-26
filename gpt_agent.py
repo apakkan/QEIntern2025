@@ -64,8 +64,10 @@ def refine_requirement(raw_requirement: list) -> list:
 
 
 
-def generate_test_cases_tool(raw_requirement: list) -> list:
-    """Send enriched requirements to LLM to generate test cases for each story."""
+def generate_test_cases_tool(raw_requirement: list) -> dict:
+    """
+    Send enriched requirements to LLM to generate comprehensive test cases for each story, following the advanced prompt.
+    """
     formatted = "\n".join([
         f"{s['story_number']}: {s['user_story']} - {s['description']} | Related: {s.get('related_stories', [])} | Group: {s.get('functionality_group', [])}"
         for s in raw_requirement
@@ -73,15 +75,23 @@ def generate_test_cases_tool(raw_requirement: list) -> list:
     messages = [
         {
             "role": "system",
-            "content": ("You are a quality engineer and testing. For each story below, return:\n"
-                        "- story_number: the story number\n"
-                        "- test_cases: list of suggested test cases\n"
-                        "- edge_cases: edge or tricky inputs\n"
-                        "- shared_tests: any tests that apply to its related stories\n"
-                        "- regression_impact: feature/stories that should be retested if this changes\n\n"
-                        "Make sure to analyze related stories and functionality groups. If multiple stories share functioality reflect that in shared_tests\n"
-                        "Respond in JSON array format, one object per story, and include the story_number in each object."),
-         },
+            "content": (
+                "You are a test automation assistant specialized in generating comprehensive test cases from user stories. "
+                "Your goal is to create test cases that cover: "
+                "Functional testing, Integration testing, API testing, End-to-End (E2E) testing, Compliance, User Roles, and Permissions.\n"
+                "For each user story: "
+                "- Identify positive and negative test scenarios.\n"
+                "- Include preconditions, test steps, expected results, and test data where applicable.\n"
+                "- Ensure clarity, traceability, and alignment with acceptance criteria.\n"
+                "- Focus on acceptance criteria, end-to-end process validation, user roles, permissions, and compliance.\n"
+                "- Include regulatory and audit requirements if mentioned.\n"
+                "Output structure (JSON): For each user story, return an object with these fields: "
+                "executive_summary (string), user_story (string), happy_path_summary (string), "
+                "scenario_table (list of objects: Test Case ID, Brief Description), "
+                "detailed_test_cases (list of objects: Test Case ID, EPIC, Feature, User Story, Business Process, Sub-Process Title, Activity Title, Test Scenario Title, Precondition, Test Data, T-Code, SAP Fiori Application ID, User Role, Detailed Test Steps, Expected Result, Dependent Module/Process). "
+                "Respond in a JSON array, one object per user story."
+            ),
+        },
         { "role": "user", "content": formatted }
     ]
     response = client.chat.completions.create(
@@ -129,7 +139,7 @@ class TestAgent(Agent):
     memory = memory.Memory(memory="")
 
     def run(self, **kwargs):
-        """Run test case generation in batches to avoid LLM truncation."""
+        """Run advanced test case generation in batches to avoid LLM truncation."""
         raw_requirements = kwargs["raw_requirements"]
         req_analysis = kwargs["req_analysis"]
 
@@ -155,9 +165,9 @@ class TestAgent(Agent):
                 "functionality_group": functionality_map.get(ra.get('functionality', 'Unknown'), [])
             })
 
-        # Batch the enriched stories to avoid LLM truncation (default 5 per batch)
-        batch_size = 5
-        all_test_cases = []
+        # Batch the enriched stories to avoid LLM truncation (default 3 per batch for more output per story)
+        batch_size = 3
+        all_results = []
         for i in range(0, len(enriched_stories), batch_size):
             batch = enriched_stories[i:i+batch_size]
             llm_output = generate_test_cases_tool(batch)
@@ -167,13 +177,13 @@ class TestAgent(Agent):
                 return text
             cleaned = strip_code_blocks(llm_output)
             try:
-                test_cases = json.loads(cleaned)
+                batch_results = json.loads(cleaned)
             except Exception as e:
                 print(f"Error parsing LLM output: {e}\nOutput: {llm_output}")
                 continue
-            all_test_cases.extend(test_cases)
+            all_results.extend(batch_results)
 
-        return all_test_cases
+        return all_results
 
 if __name__ == "__main__":
     # Load requirements from Excel
