@@ -186,8 +186,11 @@ class TestAgent(Agent):
 
 if __name__ == "__main__":
     # Load requirements from Excel
-    raw_requirements = load_requirements("requirements.xlsx")
-   # raw_requirements = query_postgres()
+    rows = query_postgres("SELECT id as story_number, title as user_story, description FROM requirements")
+    raw_requirements = [
+        {"story_number": row[0], "user_story": row[1], "description": row[2]}
+        for row in rows
+    ]
 
     # Run requirement analysis
     req_agent = RequirementAgent()
