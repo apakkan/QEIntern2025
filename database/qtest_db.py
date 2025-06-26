@@ -3,6 +3,9 @@ import psycopg2
 import os
 import requests
 from database.embedding_utils import get_embedding
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # ==== Global Constants ====
 OPENAI_EMBEDDING_DIM = 1536  # Dimension of OpenAI embeddings

@@ -1,22 +1,17 @@
 import psycopg2
 import os
+from dotenv import load_dotenv
 from database.qtest_db import connect_db
 from database.embedding_utils import get_embedding
 from database.rag_utils import find_similar_requirements
 from agno.tools import tool
 
-@tool
+load_dotenv()
+
 def query_postgres(sql_query: str):
     """
     Execute a raw SQL query on the PostgreSQL database and return all results.
-
-    Args:
-        sql_query (str): The SQL query to execute.
-
-    Returns:
-        list: Query result rows.
     """
-    # Establish a direct connection using environment variables
     conn = psycopg2.connect(
         database=os.environ.get("POSTGRES_DB", "mydb"),
         user=os.environ.get("POSTGRES_USER", "postgres"),
@@ -31,22 +26,21 @@ def query_postgres(sql_query: str):
     conn.close()
     return rows
 
+@tool
+def query_postgres_tool(sql_query: str):
+    """
+    Tool wrapper for query_postgres, for agent use.
+    """
+    return query_postgres(sql_query)
+
 def vector_search_tool(query: str, top_k: int = 3):
     """
     Perform a semantic vector search for requirements most similar to the query.
-
-    Args:
-        query (str): The natural language query to embed and search with.
-        top_k (int): Number of top similar requirements to return.
-
-    Returns:
-        list[dict]: List of matching requirements with id, title, description, and distance.
     """
     conn = connect_db()
     embedding = get_embedding(query)
     results = find_similar_requirements(conn, embedding, top_k=top_k)
     conn.close()
-    # Format results as a list of dictionaries for easy consumption
     return [
         {"id": row[0], "title": row[1], "description": row[2], "distance": row[3]}
         for row in results

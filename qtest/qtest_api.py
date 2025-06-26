@@ -1,5 +1,8 @@
 import os
 import requests
+from dotenv import load_dotenv
+
+load_dotenv()
 
 FIELD_ID_MAP = {
     "description": 12631987,

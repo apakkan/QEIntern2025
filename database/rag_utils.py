@@ -1,3 +1,7 @@
+from dotenv import load_dotenv
+
+load_dotenv()
+
 def insert_refined_requirement(
     conn,
     requirement_id,

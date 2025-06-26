@@ -16,5 +16,8 @@ def main():
                 )
         conn.close()
 
+def init_db():
+    main()
+
 if __name__ == "__main__":
     main()
