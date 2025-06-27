@@ -1,5 +1,8 @@
 import os
 import openai
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # ==== Module-level cache for the OpenAI client ====
 _client = None  # Ensures the client is only initialized once per process
@@ -30,10 +33,8 @@ def get_embedding(text):
         list[float]: The embedding vector for the input text.
     """
     client = get_openai_client()
-    # Request embedding from Azure OpenAI deployment
     response = client.embeddings.create(
         input=[text],
         model=os.environ["OPENAI_EMBEDDING_DEPLOYMENT"]
     )
-    # Return the embedding vector from the response
     return response.data[0].embedding

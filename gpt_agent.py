@@ -1,15 +1,16 @@
 # Imports and environment setup
 import json
 import os
-from openai import AzureOpenAI
+from openai import AzureOpenAI as OpenAIAzureClient
 from dotenv import load_dotenv
 import pandas as pd
 from agno.agent import Agent
 from agno.tools import tool
 from agno import memory
+from agno.models.azure import AzureOpenAI as AgnoAzureModel
 import sys
 #sys.path.append('/home/azureuser/main/QEIntern2025')
-#from tools.db_tools import query_postgres
+from tools.db_tools import query_postgres, vector_search_tool, query_postgres_tool
 
 # Load environment variables from .env file
 load_dotenv()
@@ -20,10 +21,18 @@ ENDPOINT = os.getenv("ENDPOINT")
 DEPLOYMENT_NAME = os.getenv("DEPLOYMENT_NAME")
 
 # Initialize Azure OpenAI client
-client = AzureOpenAI(
+client = OpenAIAzureClient(
+    api_key=API_KEY,
     api_version=API_VERSION,
     azure_endpoint=ENDPOINT,
+)
+
+azure_model = AgnoAzureModel(
+    id="gpt-4.1",  # or your deployment/model name
     api_key=API_KEY,
+    azure_endpoint=ENDPOINT,
+    azure_deployment=DEPLOYMENT_NAME,
+    api_version=API_VERSION,
 )
 
 def load_requirements(file_path="requirements.xlsx"):
@@ -177,8 +186,11 @@ class TestAgent(Agent):
 
 if __name__ == "__main__":
     # Load requirements from Excel
-    raw_requirements = load_requirements("requirements.xlsx")
-   # raw_requirements = query_postgres()
+    rows = query_postgres("SELECT id as story_number, title as user_story, description FROM requirements")
+    raw_requirements = [
+        {"story_number": row[0], "user_story": row[1], "description": row[2]}
+        for row in rows
+    ]
 
     # Run requirement analysis
     req_agent = RequirementAgent()
@@ -202,4 +214,13 @@ if __name__ == "__main__":
     test_output = test_agent.run(raw_requirements=raw_requirements, req_analysis=req_analysis)
     save_to_excel(test_output, "output_test_cases.xlsx")
     print(json.dumps(test_output, indent=2))
+
+
+    # Example agent with query_postgres_tool
+    agent = Agent(
+        tools=[query_postgres_tool],  # Register your tool
+        model=azure_model,            # Use Azure OpenAI for agent reasoning
+    )
+    response = agent.run("Show me the first 5 requirements from the database.")
+    print(response)
 

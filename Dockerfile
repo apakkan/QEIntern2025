@@ -10,4 +10,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy app code
 COPY . .
  
-CMD ["python", "your_app.py"]
+CMD ["python", "test/test_agent_query.py"]

@@ -1,3 +1,6 @@
+from dotenv import load_dotenv
+load_dotenv()
+
 from database.qtest_db import connect_db, create_tables, insert_requirement, get_qtest_data
 from database.rag_utils import insert_refined_requirement, find_similar_requirements
 from database.embedding_utils import get_embedding

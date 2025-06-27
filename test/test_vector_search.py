@@ -1,3 +1,6 @@
+from dotenv import load_dotenv
+load_dotenv()
+
 from init_db import main as init_db_main
 from tools.db_tools import vector_search_tool
 
