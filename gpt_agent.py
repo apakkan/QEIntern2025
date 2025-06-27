@@ -11,6 +11,8 @@ from agno.models.azure import AzureOpenAI as AgnoAzureModel
 import sys
 #sys.path.append('/home/azureuser/main/QEIntern2025')
 from tools.db_tools import query_postgres, vector_search_tool, query_postgres_tool
+from database.qtest_db import connect_db, upsert_central_vector
+from database.embedding_utils import get_embedding
 
 # Load environment variables from .env file
 load_dotenv()
@@ -224,10 +226,29 @@ if __name__ == "__main__":
 
 
     # Example agent with query_postgres_tool
-    agent = Agent(
-        tools=[query_postgres_tool],  # Register your tool
-        model=azure_model,            # Use Azure OpenAI for agent reasoning
-    )
-    response = agent.run("Show me the first 5 requirements from the database.")
-    print(response)
+    # agent = Agent(
+    #     tools=[query_postgres_tool],  # Register your tool
+    #     model=azure_model,            # Use Azure OpenAI for agent reasoning
+    # )
+    # response = agent.run("Show me the first 5 requirements from the database.")
+    # print(response)
 
+    conn = connect_db()
+    for req in req_output_list:
+        embedding = get_embedding(f"{req.get('user_story', '')} {req.get('description', '')}")
+        upsert_central_vector(
+            conn,
+            story_number=req.get('story_number'),
+            source='requirement_agent',
+            title=None,
+            description=req.get('description'),
+            user_persona=req.get('user_persona'),
+            user_story=req.get('user_story'),
+            functionality=req.get('functionality'),
+            related_stories=req.get('related_stories'),
+            business_priority=req.get('business_priority'),
+            agent_output=req,  # store the whole dict as JSONB
+            embedding=embedding
+        )
+    if conn:
+        conn.close()

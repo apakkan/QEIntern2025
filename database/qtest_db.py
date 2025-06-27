@@ -45,6 +45,23 @@ def create_tables(conn):
     cursor = conn.cursor()
     cursor.execute("CREATE EXTENSION IF NOT EXISTS vector;")
     cursor.execute(f"""
+        CREATE TABLE IF NOT EXISTS central_vectors (
+            id SERIAL PRIMARY KEY,
+            story_number INTEGER,
+            source TEXT, -- 'raw', 'requirement_agent', 'test_agent'
+            title TEXT,
+            description TEXT,
+            user_persona TEXT,
+            user_story TEXT,
+            functionality TEXT,
+            related_stories INTEGER[],
+            business_priority TEXT,
+            agent_output JSONB,
+            embedding vector({OPENAI_EMBEDDING_DIM})
+            kg_node_id TEXT
+        );
+    """)
+    cursor.execute(f"""
         CREATE TABLE IF NOT EXISTS requirements (
             id INTEGER PRIMARY KEY,
             title TEXT NOT NULL,
@@ -184,6 +201,38 @@ def insert_defects(conn, defects):
         VALUES (%s, %s, %s)
         """,
         data
+    )
+    conn.commit()
+    cursor.close()
+
+def upsert_central_vector(
+    conn, story_number, source, title, description, user_persona, user_story,
+    functionality, related_stories, business_priority, agent_output, embedding, kg_node_id=None
+):
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        INSERT INTO central_vectors (
+            story_number, source, title, description, user_persona, user_story,
+            functionality, related_stories, business_priority, agent_output, embedding, kg_node_id
+        )
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        ON CONFLICT (story_number, source) DO UPDATE SET
+            title = EXCLUDED.title,
+            description = EXCLUDED.description,
+            user_persona = EXCLUDED.user_persona,
+            user_story = EXCLUDED.user_story,
+            functionality = EXCLUDED.functionality,
+            related_stories = EXCLUDED.related_stories,
+            business_priority = EXCLUDED.business_priority,
+            agent_output = EXCLUDED.agent_output,
+            embedding = EXCLUDED.embedding,
+            kg_node_id = EXCLUDED.kg_node_id
+        """,
+        (
+            story_number, source, title, description, user_persona, user_story,
+            functionality, related_stories, business_priority, agent_output, embedding, kg_node_id
+        )
     )
     conn.commit()
     cursor.close()
