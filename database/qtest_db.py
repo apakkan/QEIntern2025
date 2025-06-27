@@ -2,6 +2,7 @@ import time
 import psycopg2
 import os
 import requests
+import json
 from database.embedding_utils import get_embedding
 from dotenv import load_dotenv
 
@@ -57,8 +58,9 @@ def create_tables(conn):
             related_stories INTEGER[],
             business_priority TEXT,
             agent_output JSONB,
-            embedding vector({OPENAI_EMBEDDING_DIM})
-            kg_node_id TEXT
+            embedding vector({OPENAI_EMBEDDING_DIM}),
+            kg_node_id TEXT,
+            UNIQUE (story_number, source)
         );
     """)
     cursor.execute(f"""
@@ -210,6 +212,9 @@ def upsert_central_vector(
     functionality, related_stories, business_priority, agent_output, embedding, kg_node_id=None
 ):
     cursor = conn.cursor()
+    # Convert agent_output to JSON string if it's a dict
+    if agent_output is not None and isinstance(agent_output, dict):
+        agent_output = json.dumps(agent_output)
     cursor.execute(
         """
         INSERT INTO central_vectors (

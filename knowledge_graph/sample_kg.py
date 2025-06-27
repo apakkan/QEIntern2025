@@ -45,10 +45,20 @@ def fetch_central_vectors():
     return rows
 
 def to_py_vector(pg_vector):
-    # Convert Postgres vector (list/array) to Python list/NumPy array if needed
+    if pg_vector is None:
+        return None
     if isinstance(pg_vector, memoryview):
         return np.frombuffer(pg_vector, dtype=np.float32).tolist()
-    return list(pg_vector) if pg_vector is not None else None
+    if isinstance(pg_vector, np.ndarray):
+        return pg_vector.tolist()
+    if isinstance(pg_vector, list):
+        return pg_vector
+    # If it's a string (shouldn't be), try to parse
+    try:
+        import ast
+        return ast.literal_eval(pg_vector)
+    except Exception:
+        return None
 
 records = fetch_central_vectors()
 for rec in records:
@@ -56,6 +66,13 @@ for rec in records:
         story_number, source, title, description, user_persona, user_story,
         functionality, related_stories, business_priority, agent_output, embedding
     ) = rec
+
+    # Convert embedding to list of floats if needed
+    embedding = to_py_vector(embedding)
+
+    if embedding is None or not isinstance(embedding, list) or len(embedding) == 0:
+        print(f"Skipping story_number {story_number}: invalid embedding")
+        continue
 
     # Choose label based on source, or always use Requirement
     label = "Requirement" if source == "requirement_agent" else "RawRequirement"

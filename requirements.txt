@@ -6,3 +6,5 @@ agno
 psycopg2-binary
 requests
 sqlalchemy
+langchain-openai
+langchain-neo4j
