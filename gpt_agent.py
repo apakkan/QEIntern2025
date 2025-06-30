@@ -9,8 +9,10 @@ from agno.tools import tool
 from agno import memory
 from agno.models.azure import AzureOpenAI as AgnoAzureModel
 import sys
-#sys.path.append('/home/azureuser/main/QEIntern2025')
 from tools.db_tools import query_postgres, vector_search_tool, query_postgres_tool
+from database.qtest_db import connect_db
+from database.embedding_utils import get_embedding
+from database.rag_utils import insert_refined_requirement
 
 # Load environment variables from .env file
 load_dotenv()
@@ -35,15 +37,32 @@ azure_model = AgnoAzureModel(
     api_version=API_VERSION,
 )
 
-def load_requirements(file_path="requirements.xlsx"):
-    """Load requirements from Excel and return as list of dicts."""
-    df = pd.read_excel(file_path)
-    return df[['story_number', 'user_story','description']].dropna().to_dict(orient='records')
+def fetch_raw_requirements():
+    """Fetch raw requirements from the database."""
+    rows = query_postgres("SELECT id as story_number, title as user_story, description FROM requirements")
+    return [
+        {"story_number": row[0], "user_story": row[1], "description": row[2]}
+        for row in rows
+    ]
 
-def load_requirement_analysis(file_path="output_req.xlsx"):
-    """Load requirement analysis from Excel and return as list of dicts."""
-    df = pd.read_excel(file_path)
-    return df.to_dict(orient='records')
+
+
+def fetch_analyzed_requirements():
+    """Fetch analyzed requirements from the database. (refinedrequirements label)"""
+    rows = query_postgres("SELECT requirement_id, user_persona, user_story, functionality, description, release, related_story, business_priority FROM refinedrequirements")
+    return [
+        {
+            "story_number": row[0],
+            "user_persona": row[1],
+            "user_story": row[2],
+            "functionality": row[3],
+            "description": row[4],
+            "release": row[5],
+            "related_stories": json.loads(row[6]) if row[6] else [],
+            "business_priority": row[7],
+        }
+        for row in rows
+    ]
 
 def refine_requirement(raw_requirement: list) -> list:
     """Send requirements to LLM for analysis (related stories, functionality)."""
@@ -106,31 +125,42 @@ def strip_code_blocks(text):
         return ''
     return text.replace('```json', '').replace('```', '').strip()
 
-def save_to_excel(json_output, path="output.xlsx"):
-    """Save a list/dict or JSON string to Excel."""
-    if isinstance(json_output, str):
-        try:
-            data = json.loads(json_output)
-        except Exception as e:
-            print(f"Error parsing JSON: {e}\nInput: {json_output}")
-            return
-    else:
-        data = json_output
-    if not isinstance(data, (list, dict)):
-        print(f"Output is not a list or dict: {type(data)}")
-        return
-    df = pd.DataFrame(data)
-    df.to_excel(path, index=False)
-    print(f"Output saved to {path}")
 
 class RequirementAgent(Agent):
     tools = [refine_requirement]
     memory = memory.Memory(memory="")
 
     def run(self, **kwargs):
-        """Run requirement analysis using the LLM."""
+        """Run requirement analysis using the LLM and write to the database."""
         raw_requirements = kwargs["raw_requirements"]
-        return refine_requirement(raw_requirements)
+       # return refine_requirement(raw_requirements)
+
+        req_output = refine_requirement(raw_requirements)
+        req_output_clean = strip_code_blocks(req_output)
+        try:
+            req_output_list = json.loads(req_output_clean)
+        except Exception as e:
+            print(f"Error parsing requirement agent output: {e}\nOutput was: {req_output_clean}")
+            return []
+        #write each analyzed requirement to the database
+        conn = connect_db()
+        for req in req_output_list:
+            embedding = get_embedding(f"{req.get('user_story', '')} {req.get('description', '')}")
+            insert_refined_requirement(
+                conn,
+                requirement_id=req.get('story_number'),
+                user_persona=req.get('user_persona'),
+                user_story=req.get('user_story'),
+                functionality=req.get('functionality'),
+                refined_description=req.get('description'),
+                release=req.get('release'),
+                related_story=json.dumps(req.get('related_stories')) if req.get('related_stories') is not None else None,
+                business_priority=req.get('business_priority'),
+                embedding=embedding
+            )
+            if conn:
+                conn.close()
+            return req_output_list
 
 
 class TestAgent(Agent):
@@ -171,12 +201,16 @@ class TestAgent(Agent):
             batch = enriched_stories[i:i+batch_size]
             llm_output = generate_test_cases_tool(batch)
             def strip_code_blocks(text):
-                if text.strip().startswith('```'):
+                #if text.strip().startswith('```'):
+                if isinstance(text, str) and text.strip().startswith('```'):
                     return '\n'.join(line for line in text.splitlines() if not line.strip().startswith('```'))
                 return text
             cleaned = strip_code_blocks(llm_output)
             try:
-                test_cases = json.loads(cleaned)
+                if isinstance(cleaned,str):
+                    test_cases = json.loads(cleaned)
+                else:
+                    test_cases = cleaned
             except Exception as e:
                 print(f"Error parsing LLM output: {e}\nOutput: {llm_output}")
                 continue
@@ -185,42 +219,25 @@ class TestAgent(Agent):
         return all_test_cases
 
 if __name__ == "__main__":
-    # Load requirements from Excel
-    rows = query_postgres("SELECT id as story_number, title as user_story, description FROM requirements")
-    raw_requirements = [
-        {"story_number": row[0], "user_story": row[1], "description": row[2]}
-        for row in rows
-    ]
 
-    # Run requirement analysis
+    # Fetch raw requirements from the database
+    raw_requirements = fetch_raw_requirements()
+
+
+
+    # Run requirement analysis and write to database
     req_agent = RequirementAgent()
-    req_output = req_agent.run(raw_requirements=raw_requirements)
 
-    # Always parse and save as list of dicts
-    req_output_clean = strip_code_blocks(req_output)
-    try:
-        req_output_list = json.loads(req_output_clean)
-    except Exception as e:
-        print(f"Error parsing requirement agent output: {e}\nOutput was: {req_output_clean}")
-        req_output_list = []
-    save_to_excel(req_output_list, "output_req.xlsx")
-    print(json.dumps(req_output_list, indent=2))
+    req_agent.run(raw_requirements=raw_requirements)
 
-    # Load requirement analysis from Excel
-    req_analysis = load_requirement_analysis("output_req.xlsx")
+    # Fetch analyzed requirements from the database
+    req_analysis = fetch_analyzed_requirements()
 
     # Run test case generation (batched)
     test_agent = TestAgent()
     test_output = test_agent.run(raw_requirements=raw_requirements, req_analysis=req_analysis)
-    save_to_excel(test_output, "output_test_cases.xlsx")
+    #save_to_excel(test_output, "output_test_cases.xlsx")
     print(json.dumps(test_output, indent=2))
 
 
-    # Example agent with query_postgres_tool
-    agent = Agent(
-        tools=[query_postgres_tool],  # Register your tool
-        model=azure_model,            # Use Azure OpenAI for agent reasoning
-    )
-    response = agent.run("Show me the first 5 requirements from the database.")
-    print(response)
 
