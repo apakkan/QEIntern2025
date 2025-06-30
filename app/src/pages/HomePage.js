@@ -97,7 +97,7 @@ const functionalityImpactData = [
           <option value="Sprint 3">Sprint 3</option>
         </select>
       </div>
-
+ 
       <div style={styles.selectGroup}>
         <label style={styles.label}>Functionality:</label>
         <select value={functionality} onChange={(e) => setFunctionality(e.target.value)} style={styles.select}>
