@@ -1,7 +1,16 @@
-.App {
-  text-align: center;
+body {
+  background-color: #F6F6F6; /* Cool Grey 1 */
+  font-family: 'Ubuntu', Arial, sans-serif;
 }
 
+.App {
+  text-align: center;
+  min-height: 100vh;
+  font-family: 'Ubuntu', Arial, sans-serif;
+}
+* {
+  font-family: 'Ubuntu', Arial, sans-serif;
+}
 .App-logo {
   height: 40vmin;
   pointer-events: none;

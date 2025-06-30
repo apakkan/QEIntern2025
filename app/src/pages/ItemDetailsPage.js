@@ -1,7 +1,6 @@
-// src/pages/ItemDetailsPage.js
 import React from 'react';
 import { useParams } from 'react-router-dom';
-import ChatBot from '../components/ChatBot';
+//import ChatBot from '../components/ChatBot';
 
 const mockData = [
   {
@@ -44,6 +43,7 @@ const mockData = [
 function ItemDetailsPage() {
   const { id } = useParams();
   const item = mockData.find((d) => d.id === parseInt(id));
+  const [showPopup, setShowPopup] = React.useState(false);
 
   const relatedStories = [
     {
@@ -89,6 +89,17 @@ function ItemDetailsPage() {
 
   if (!item) return <p style={{ padding: '2rem' }}>Item not found.</p>;
 
+  const handleDownload = (type) => {
+    setShowPopup(false);
+    alert(`Download Test Cases as ${type}`);
+    //backend download logic here
+  };
+  const handleInsertDB = () => {
+    setShowPopup(false);
+    alert('Insert Test Cases into Database');
+    //backend insert logic here
+  };
+
   return (
     <div style={{ display: 'flex', alignItems: 'flex-start' }}>
       <div style={{ flex: 1, padding: '2rem', fontFamily: 'Arial, sans-serif' }}>
@@ -109,18 +120,75 @@ function ItemDetailsPage() {
         </p>
         <div style={{ marginTop: '2rem' }}>
           <button
-            style={{ marginRight: '1rem', padding: '0.5rem 1rem', backgroundColor: '#ff4d4f', color: 'white', border: 'none', borderRadius: '4px' }}
+            style={{
+              marginRight: '1rem',
+              padding: '0.5rem 1rem',
+              backgroundColor: '#ff4d4f',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px'
+            }}
             onClick={() => alert('This would delete the story')}
           >
             Delete
           </button>
           <button
-            style={{ padding: '0.5rem 1rem', backgroundColor: '#1890ff', color: 'white', border: 'none', borderRadius: '4px' }}
+            style={{
+              padding: '0.5rem 1rem',
+              backgroundColor: '#0070AD', // Capgemini Blue
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px'
+            }}
             onClick={() => alert('This would refine the story')}
           >
             Refine
           </button>
         </div>
+
+      {/*TC Generation*/}
+      <div style={{ marginTop: '2rem' }}>
+          <button
+            style={{
+              padding: '0.5rem 1.5rem',
+              backgroundColor: '#28a745',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              fontSize: '1rem',
+              cursor: 'pointer'
+            }}
+            onClick={() => setShowPopup(true)}
+          >
+            Generate Test Cases
+          </button>
+          </div>
+          
+        {/* Popup for Test Case Creation*/}
+        {showPopup && (
+          <div style={popupStyles.overlay}>
+            <div style={popupStyles.popup}>
+              <button
+                style={popupStyles.button}
+                onClick={() => handleDownload('Excel/Word')}
+              >
+                Download in Excel or Word
+              </button>
+              <button
+                style={popupStyles.button}
+                onClick={handleInsertDB}
+              >
+                Insert in Database
+              </button>
+              <button
+                style={popupStyles.close}
+                onClick={() => setShowPopup(false)}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Related Stories Table */}
         <h2 style={{ marginTop: '2rem' }}>Related Stories</h2>
@@ -142,7 +210,14 @@ function ItemDetailsPage() {
                 <td style={styles.td}>{story.description}</td>
                 <td style={styles.td}>{story.relationship}%</td>
                 <td style={styles.td}>
-                  <button style={styles.button}>View</button>
+                  <button
+                    style={{
+                      ...styles.button,
+                      backgroundColor: '#0070AD', // Capgemini Blue for View
+                    }}
+                  >
+                    View
+                  </button>
                 </td>
               </tr>
             ))}
@@ -169,14 +244,21 @@ function ItemDetailsPage() {
                 <td style={styles.td}>{test.description}</td>
                 <td style={styles.td}>{test.coverage}%</td>
                 <td style={styles.td}>
-                  <button style={styles.button}>Run</button>
+                  <button
+                    style={{
+                      ...styles.button,
+                      backgroundColor: '#0070AD', // Capgemini Blue for Run
+                    }}
+                  >
+                    Run
+                  </button>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-      <ChatBot />
+      {/* ChatBot Component */}
     </div>
   );
 }
@@ -206,6 +288,50 @@ const styles = {
     borderRadius: '4px',
     cursor: 'pointer',
   },
+};
+
+const popupStyles = {
+  overlay: {
+    position: 'fixed',
+    top: 0, left: 0, right: 0, bottom: 0,
+    background: 'rgba(0,0,0,0.3)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1000,
+  },
+  popup: {
+    background: 'white',
+    padding: '2rem',
+    borderRadius: '8px',
+    boxShadow: '0 2px 12px rgba(0,0,0,0.2)',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    minWidth: '320px',
+  },
+  button: {
+    margin: '1rem 0',
+    padding: '0.75rem 1.5rem',
+    backgroundColor: '#007bff',
+    color: 'white',
+    border: 'none',
+    borderRadius: '4px',
+    fontSize: '1rem',
+    cursor: 'pointer',
+    width: '100%',
+  },
+  close: {
+    marginTop: '1rem',
+    padding: '0.5rem 1.5rem',
+    backgroundColor: '#888',
+    color: 'white',
+    border: 'none',
+    borderRadius: '4px',
+    fontSize: '1rem',
+    cursor: 'pointer',
+    width: '100%',
+  }
 };
 
 export default ItemDetailsPage;

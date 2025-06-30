@@ -1,9 +1,7 @@
 import React, { useState } from 'react';
 
-
 function DetailsPage() {
   const [release, setRelease] = useState('');
-  const [type, setType] = useState('');
   const [functionality, setFunctionality] = useState('');
 
   const allData = [
@@ -63,7 +61,6 @@ const functionalityImpactData = [
   const filteredData = allData.filter((item) => {
     return (
       (!release || item.release === release) &&
-      (!type || item.type === type) &&
       (!functionality || item.functionality === functionality)
     );
   });
@@ -75,9 +72,9 @@ const functionalityImpactData = [
         <label style={styles.label}>Model:</label>
         <select value={release} onChange={(e) => setRelease(e.target.value)} style={styles.select}>
           <option value="">-- Select Model --</option>
-          <option value="gpt-4o">Project X</option>
-          <option value="gpt-4">Project Y</option>
-          <option value="gpt-3.5">Project Z</option>
+          <option value="gpt-4o">gpt-4o</option>
+          <option value="gpt-4">gpt-4</option>
+          <option value="gpt-3.5">gpt-3.5</option>
         </select>
       </div>
 
@@ -102,15 +99,6 @@ const functionalityImpactData = [
       </div>
 
       <div style={styles.selectGroup}>
-        <label style={styles.label}>Selection Type:</label>
-        <select value={type} onChange={(e) => setType(e.target.value)} style={styles.select}>
-          <option value="">-- Select Type --</option>
-          <option value="Story Only">Story Only</option>
-          <option value="Advanced">Advanced</option>
-        </select>
-      </div>
-
-      <div style={styles.selectGroup}>
         <label style={styles.label}>Functionality:</label>
         <select value={functionality} onChange={(e) => setFunctionality(e.target.value)} style={styles.select}>
           <option value="">-- Select Functionality --</option>
@@ -126,25 +114,6 @@ const functionalityImpactData = [
       </div>
     </div>
 
-<h3>Functionality Impact</h3>
-<table style={styles.table}>
-  <thead>
-    <tr>
-      <th style={styles.th}>Story Number</th>
-      <th style={styles.th}>Functionality</th>
-      <th style={styles.th}>Risk Score</th>
-    </tr>
-  </thead>
-  <tbody>
-    {functionalityImpactData.map((row) => (
-      <tr key={row.id}>
-        <td style={styles.td}>{row.id}</td>
-        <td style={styles.td}>{row.functionality}</td>
-        <td style={styles.td}>{row.risk}</td>
-      </tr>
-    ))}
-  </tbody>
-</table>
 
     <h3>Filtered Feature Table</h3>
 {filteredData.length > 0 ? (
@@ -154,22 +123,37 @@ const functionalityImpactData = [
       <th style={styles.th}>ID</th>
       <th style={styles.th}>Item</th>
       <th style={styles.th}>Description</th>
+      <th style={styles.th}>Functionality</th>
+      <th style={styles.th}>Risk Score</th>
       <th style={styles.th}></th>
     </tr>
   </thead>
   <tbody>
-    {filteredData.map((row) => (
-      <tr key={row.id}>
+    {filteredData.length > 0 ? (
+      filteredData.map((row) => {
+        const impact = functionalityImpactData.find(
+          (f) => f.functionality === row.functionality
+        );
+        return (
+          <tr key={row.id}>
         <td style={styles.td}>{row.id}</td>
         <td style={styles.td}>{row.name}</td>
         <td style={styles.td}>{row.description || 'No description available'}</td>
+        <td style={styles.td}>{row.functionality}</td>
+        <td style={styles.td}>{impact ? impact.risk : 'N/A'}</td>
         <td style={styles.td}>
           <button style={styles.actionButton} onClick={() => window.location.href = `/item/${row.id}`}>
             View
           </button>
         </td>
       </tr>
-    ))}
+        );
+      })
+    ) : (
+      <tr>
+        <td stylee={styles.td} colSpan={6}>No matching data found.</td>
+      </tr>
+    )}
   </tbody>
 </table>
 
@@ -183,8 +167,11 @@ const functionalityImpactData = [
 
 const styles = {
   container: {
-    padding: '2rem',
-    fontFamily: 'Arial, sans-serif',
+   padding: '2rem',
+    fontFamily: 'Ubuntu, Arial, sans-serif',
+    backgroundColor: '#F6F6F6', // Light blue background
+    minHeight: '100vh',
+    boxSizing: 'border-box', 
   },
   filterPanel: {
     display: 'flex',
@@ -192,6 +179,10 @@ const styles = {
     alignItems: 'flex-start',
     marginBottom: '2rem',
     maxWidth: '450px',
+    backgroundColor: '#ffffff', // White panel background
+    borderRadius: '8px',
+    boxShadow: '0 2px 8px rgba(0,112,173,0.08)',
+    padding: '1.5rem',
   },
   selectGroup: {
     display: 'flex',
@@ -200,44 +191,58 @@ const styles = {
     width: '100%',
   },
   label: {
-    width: '160px', // Fixed width for all labels, left aligned
-    marginRight: '0', // No forced gap, so dropdowns start at same spot
-    textAlign: 'left', // Left align label text
+    width: '160px', 
+    marginRight: '0', 
+    textAlign: 'left', 
     fontWeight: 'bold',
     display: 'inline-block',
+    color: '#0070AD' // Capgemini Blue for labels
   },
   select: {
-    marginLeft: '16px', // Consistent gap between label and dropdown
+    marginLeft: '16px', 
     padding: '0.5rem',
     fontSize: '1rem',
     width: '250px',
     maxWidth: '250px',
     boxSizing: 'border-box',
     display: 'inline-block',
+     border: '1px solid #0070AD', // Dark blue border
+    borderRadius: '4px',
+    backgroundColor: '#ffffff', // white
+    color: '#003366',
   },
   table: {
     width: '100%',
     borderCollapse: 'collapse',
     marginTop: '1rem',
+    backgroundColor: '#ffffff', // White table background
+    borderRadius: '8px',
+    overflow: 'hidden',
+    boxShadow: '0 2px 8px rgba(0,112,173,0.08)'
   },
   th: {
     border: '1px solid #ccc',
     padding: '0.75rem',
-    backgroundColor: '#f9f9f9',
+    backgroundColor: '#0070AD', // Capgemini Blue
+    color: '#fff', // white text
     textAlign: 'left',
   },
   td: {
     border: '1px solid #ccc',
     padding: '0.75rem',
     textAlign: 'left',
+    backgroundColor: '#f5faff', // light blue row
+    color: 'black' // text
   },
   actionButton: {
     padding: '0.5rem 1rem',
-    backgroundColor: '#007bff',
+    backgroundColor: '#0070AD',
     color: 'white',
     border: 'none',
     borderRadius: '4px',
     cursor: 'pointer',
+    fontWeight: 'bold',
+    transition: 'background 0.2s'
   },
 };
 
