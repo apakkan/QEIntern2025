@@ -44,6 +44,15 @@ def fetch_central_vectors():
     conn.close()
     return rows
 
+def fetch_requirements():
+    conn = get_pg_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT id, title, description, status, embedding FROM requirements")
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+    return rows
+
 def to_py_vector(pg_vector):
     if pg_vector is None:
         return None
@@ -97,6 +106,27 @@ for rec in records:
         WITH r
         CALL db.create.setNodeVectorProperty(r, 'textEmbedding', $embedding)
     """, {"story_number": story_number, "properties": properties, "embedding": embedding})
+
+# Insert requirements as nodes (if not already in central_vectors)
+requirements = fetch_requirements()
+for rec in requirements:
+    req_id, title, description, status, embedding = rec
+    embedding = to_py_vector(embedding)
+    if embedding is None or not isinstance(embedding, list) or len(embedding) == 0:
+        continue
+    properties = {
+        "story_number": req_id,
+        "title": title,
+        "description": description,
+        "status": status
+    }
+    properties = {k: v for k, v in properties.items() if v is not None}
+    graph.query("""
+        MERGE (r:RawRequirement {story_number: $story_number})
+        SET r += $properties
+        WITH r
+        CALL db.create.setNodeVectorProperty(r, 'textEmbedding', $embedding)
+    """, {"story_number": req_id, "properties": properties, "embedding": embedding})
 
 # Create the vector index (if not exists)
 graph.query("""

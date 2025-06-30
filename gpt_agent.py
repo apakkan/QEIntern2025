@@ -13,6 +13,7 @@ import sys
 from tools.db_tools import query_postgres, vector_search_tool, query_postgres_tool
 from database.qtest_db import connect_db, upsert_central_vector
 from database.embedding_utils import get_embedding
+from langchain_neo4j import Neo4jGraph
 
 # Load environment variables from .env file
 load_dotenv()
@@ -35,6 +36,12 @@ azure_model = AgnoAzureModel(
     azure_endpoint=ENDPOINT,
     azure_deployment=DEPLOYMENT_NAME,
     api_version=API_VERSION,
+)
+
+graph = Neo4jGraph(
+    url=os.getenv('NEO4J_URI'),
+    username=os.getenv('NEO4J_USERNAME'),
+    password=os.getenv('NEO4J_PASSWORD')
 )
 
 def load_requirements(file_path="requirements.xlsx"):
@@ -193,6 +200,10 @@ class TestAgent(Agent):
 
         return all_test_cases
 
+def get_requirements_from_kg():
+    results = graph.query("MATCH (r:Requirement) RETURN r")
+    return [record['r'] for record in results]
+
 if __name__ == "__main__":
     # Load requirements from Excel
     rows = query_postgres("SELECT id as story_number, title as user_story, description FROM requirements")
@@ -250,5 +261,22 @@ if __name__ == "__main__":
             agent_output=req,  # store the whole dict as JSONB
             embedding=embedding
         )
+        # Also upsert to Neo4j:
+        properties = {
+            "story_number": req.get('story_number'),
+            "user_story": req.get('user_story'),
+            "description": req.get('description'),
+            "functionality": req.get('functionality'),
+            "related_stories": req.get('related_stories'),
+            "business_priority": req.get('business_priority'),
+            "agent_output": req
+        }
+        properties = {k: v for k, v in properties.items() if v is not None}
+        graph.query("""
+            MERGE (r:Requirement {story_number: $story_number})
+            SET r += $properties
+            WITH r
+            CALL db.create.setNodeVectorProperty(r, 'textEmbedding', $embedding)
+        """, {"story_number": req.get('story_number'), "properties": properties, "embedding": embedding})
     if conn:
         conn.close()
