@@ -2,22 +2,44 @@ services:
   app:
     build: .
     depends_on:
-      - shivanidb
+      - maindb
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@db:5434/mydb
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/mydb
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_HOST=${POSTGRES_HOST}
+      - POSTGRES_PORT=${POSTGRES_PORT}
+      - OPENAI_CHAT_API_KEY=${OPENAI_CHAT_API_KEY}  
+      - OPENAI_CHAT_API_VERSION=2024-12-01-preview
+      - OPENAI_CHAT_API_BASE=${OPENAI_CHAT_API_BASE}
+      - OPENAI_CHAT_DEPLOYMENT=gpt-4.1
+      - OPENAI_EMBEDDING_API_KEY=${OPENAI_EMBEDDING_API_KEY}
+      - OPENAI_EMBEDDING_API_BASE=${OPENAI_EMBEDDING_API_BASE}
+      - OPENAI_EMBEDDING_API_VERSION=2023-05-15
+      - OPENAI_EMBEDDING_DEPLOYMENT=${OPENAI_EMBEDDING_DEPLOYMENT}
+      - QTEST_REQUIREMENTS_API_URL=${QTEST_REQUIREMENTS_API_URL}
+      - QTEST_TESTCASES_API_URL=${QTEST_TESTCASES_API_URL}
+      - QTEST_TESTRUNS_API_URL=${QTEST_TESTRUNS_API_URL}
+      - QTEST_DEFECTS_API_URL=${QTEST_DEFECTS_API_URL}
+      - QTEST_API_KEY=${QTEST_API_KEY}
+      - QTEST_REQUIREMENTS_PARENT_ID=11061822
+      - QTEST_TESTCASES_PARENT_ID=11061822
+      - PYTHONPATH=/app
     volumes:
       - .:/app
- 
-  shivanidb:
+    command: python test/test_query_postgres.py
+
+  maindb:
     image: pgvector/pgvector:pg17
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: mydb
+    environment: 
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     ports:
-      - "5434:5434"
+      - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data 
- 
+      - postgres_data:/var/lib/postgresql/data
+
 volumes:
-  postgres_data:  
+  postgres_data:
