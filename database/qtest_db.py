@@ -69,6 +69,11 @@ def create_tables(conn):
             title TEXT NOT NULL,
             description TEXT,
             status TEXT,
+            priority TEXT,
+            sprint TEXT,
+            user_persona TEXT,
+            user_story TEXT,
+            functionality TEXT,              
             embedding vector({OPENAI_EMBEDDING_DIM})
         );
     """)
