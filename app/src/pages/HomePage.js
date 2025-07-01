@@ -1,166 +1,113 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 function DetailsPage() {
+  const [model, setModel] = useState('');
+  const [project, setProject] = useState('');
   const [release, setRelease] = useState('');
   const [functionality, setFunctionality] = useState('');
+  const [allData, setAllData] = useState([]);
 
-  const allData = [
-  {
-    id: 1,
-    name: 'As a Case Worker, I want to intake a new Medicaid application so that I can begin the eligibility process.',
-    release: 'Sprint 1',
-    type: 'Story Only',
-    functionality: 'Application Intake',
-    description: 'Enable intake of new applications with basic applicant details.',
-    priority: 'High',
-  },
-  {
-    id: 2,
-    name: 'As a Case Worker, I want to verify applicant identity using government ID so that I can ensure accurate records.',
-    release: 'Sprint 2',
-    type: 'Advanced',
-    functionality: 'General Access & Eligibility',
-    description: 'Integrate ID verification with DMV or SSA databases.',
-    priority: 'Medium',
-  },
-  {
-    id: 3,
-    name: 'As a Case Worker, I want to check income eligibility using wage data so that I can determine financial qualification.',
-    release: 'Sprint 3',
-    type: 'Story Only',
-    functionality: 'Eligibility Verification',
-    description: 'Connect to income verification systems like The Work Number.',
-    priority: 'Low',
-  },
-  {
-    id: 4,
-    name: 'As a Case Worker, I want to record household composition so that I can assess eligibility based on family size.',
-    release: 'Sprint 1',
-    type: 'Advanced',
-    functionality: 'Eligibility Verification',
-    description: 'Capture household members and their relationships.',
-    priority: 'High',
-  },
-  {
-    id: 5,
-    name: 'As a Case Worker, I want to flag incomplete applications so that I can follow up with applicants.',
-    release: 'Sprint 2',
-    type: 'Story Only',
-    functionality: 'Application Intake',
-    description: 'System should highlight missing fields and documents.',
-    priority: 'Medium',
-  }, 
+  useEffect(() => {
+    fetch("https://pasqu-mbxvvr59-eastus2.cognitiveservices.azure.com/")
+      .then(res => res.json())
+      .then(data => {
+        console.log('API response:', data);
+        setAllData(Array.isArray(data) ? data : data.items || []);
+      })
+      .catch(err => setAllData([]));
+  }, []);
 
-];
-const functionalityImpactData = [
-  { id: 1, functionality: 'Application Intake', risk: 'High' },
-  { id: 2, functionality: 'General Access & Eligibility', risk: 'Medium' },
-  { id: 3, functionality: 'Eligibility Verification', risk: 'Low' },
-];
+  //dropdown
+  const models = Array.from(new Set(allData.map(item => item.model))).filter(Boolean);
+  const projects = Array.from(new Set(allData.map(item => item.project))).filter(Boolean);
+  const releases = Array.from(new Set(allData.map(item => item.release))).filter(Boolean);
+  const functionalities = Array.from(new Set(allData.map(item => item.functionality))).filter(Boolean);
 
-  const filteredData = allData.filter((item) => {
+  // Filtering
+  const filteredData = Array.isArray(allData) ? allData.filter((item) => {
     return (
+      (!model || item.model === model) &&
+      (!project || item.project === project) &&
       (!release || item.release === release) &&
       (!functionality || item.functionality === functionality)
     );
-  });
+  }) : [];
 
   return (
-  <div style={styles.container}>
-    <div style={styles.filterPanel}>
-      <div style={styles.selectGroup}>
-        <label style={styles.label}>Model:</label>
-        <select value={release} onChange={(e) => setRelease(e.target.value)} style={styles.select}>
-          <option value="">-- Select Model --</option>
-          <option value="gpt-4o">gpt-4o</option>
-          <option value="gpt-4">gpt-4</option>
-          <option value="gpt-3.5">gpt-3.5</option>
-        </select>
+    <div style={styles.container}>
+      <div style={styles.filterPanel}>
+        {/* Model Dropdown */}
+        <div style={styles.selectGroup}>
+          <label style={styles.label}>Model:</label>
+          <select value={model} onChange={e => setModel(e.target.value)} style={styles.select}>
+            <option value="">-- Select Model --</option>
+            {models.map(m => <option key={m} value={m}>{m}</option>)}
+          </select>
+        </div>
+        {/* Project Dropdown */}
+        <div style={styles.selectGroup}>
+          <label style={styles.label}>Project Name:</label>
+          <select value={project} onChange={e => setProject(e.target.value)} style={styles.select}>
+            <option value="">-- Select Project --</option>
+            {projects.map(p => <option key={p} value={p}>{p}</option>)}
+          </select>
+        </div>
+        {/* Release Dropdown */}
+        <div style={styles.selectGroup}>
+          <label style={styles.label}>Release:</label>
+          <select value={release} onChange={e => setRelease(e.target.value)} style={styles.select}>
+            <option value="">-- Select Release --</option>
+            {releases.map(r => <option key={r} value={r}>{r}</option>)}
+          </select>
+        </div>
+        {/* Functionality Dropdown */}
+        <div style={styles.selectGroup}>
+          <label style={styles.label}>Functionality:</label>
+          <select value={functionality} onChange={e => setFunctionality(e.target.value)} style={styles.select}>
+            <option value="">-- Select Functionality --</option>
+            {functionalities.map(f => <option key={f} value={f}>{f}</option>)}
+          </select>
+        </div>
       </div>
 
-      <div style={styles.selectGroup}>
-        <label style={styles.label}>Project Name:</label>
-        <select value={release} onChange={(e) => setRelease(e.target.value)} style={styles.select}>
-          <option value="">-- Select Project --</option>
-          <option value="Project X">Project X</option>
-          <option value="Project Y">Project Y</option>
-          <option value="Project Z">Project Z</option>
-        </select>
-      </div>
-
-      <div style={styles.selectGroup}>
-        <label style={styles.label}>Release:</label>
-        <select value={release} onChange={(e) => setRelease(e.target.value)} style={styles.select}>
-          <option value="">-- Select Release --</option>
-          <option value="Sprint 1">Sprint 1</option>
-          <option value="Sprint 2">Sprint 2</option>
-          <option value="Sprint 3">Sprint 3</option>
-        </select>
-      </div>
- 
-      <div style={styles.selectGroup}>
-        <label style={styles.label}>Functionality:</label>
-        <select value={functionality} onChange={(e) => setFunctionality(e.target.value)} style={styles.select}>
-          <option value="">-- Select Functionality --</option>
-          <option value="Application Intake">Application Intake</option>
-          <option value="General Access & Eligibility">General Access & Eligibility</option>
-          <option value="Eligibility Verification">Eligibility Verification</option>
-          <option value="Document Management">Document Management</option>
-          <option value="Case Management">Case Management</option>
-          <option value="Client Communication">Client Communication</option>
-          <option value="Reporting & Audit">Reporting & Audit</option>
-          <option value="Alerts & Notifications">Alerts & Notifications</option>
-        </select>
-      </div>
-    </div>
-
-
-    <h3>Filtered Feature Table</h3>
-{filteredData.length > 0 ? (
- <table style={styles.table}>
-  <thead>
-    <tr>
-      <th style={styles.th}>ID</th>
-      <th style={styles.th}>Item</th>
-      <th style={styles.th}>Description</th>
-      <th style={styles.th}>Functionality</th>
-      <th style={styles.th}>Risk Score</th>
-      <th style={styles.th}></th>
-    </tr>
-  </thead>
-  <tbody>
-    {filteredData.length > 0 ? (
-      filteredData.map((row) => {
-        const impact = functionalityImpactData.find(
-          (f) => f.functionality === row.functionality
-        );
-        return (
-          <tr key={row.id}>
-        <td style={styles.td}>{row.id}</td>
-        <td style={styles.td}>{row.name}</td>
-        <td style={styles.td}>{row.description || 'No description available'}</td>
-        <td style={styles.td}>{row.functionality}</td>
-        <td style={styles.td}>{impact ? impact.risk : 'N/A'}</td>
-        <td style={styles.td}>
-          <button style={styles.actionButton} onClick={() => window.location.href = `/item/${row.id}`}>
-            View
-          </button>
-        </td>
-      </tr>
-        );
-      })
-    ) : (
-      <tr>
-        <td stylee={styles.td} colSpan={6}>No matching data found.</td>
-      </tr>
-    )}
-  </tbody>
-</table>
-
-) : (
-  <p>No matching data found.</p>
-)}
-
+      {/* Table */}
+      <h3>Filtered Feature Table</h3>
+      {filteredData.length > 0 ? (
+        <table style={styles.table}>
+          <thead>
+            <tr>
+              <th style={styles.th}>ID</th>
+              <th style={styles.th}>Item</th>
+              <th style={styles.th}>Description</th>
+              <th style={styles.th}>Model</th>
+              <th style={styles.th}>Project</th>
+              <th style={styles.th}>Release</th>
+              <th style={styles.th}>Functionality</th>
+              <th style={styles.th}></th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredData.map(row => (
+              <tr key={row.id}>
+                <td style={styles.td}>{row.id}</td>
+                <td style={styles.td}>{row.name}</td>
+                <td style={styles.td}>{row.description || 'No description available'}</td>
+                <td style={styles.td}>{row.model}</td>
+                <td style={styles.td}>{row.project}</td>
+                <td style={styles.td}>{row.release}</td>
+                <td style={styles.td}>{row.functionality}</td>
+                <td style={styles.td}>
+                  <button style={styles.actionButton} onClick={() => window.location.href = `/item/${row.id}`}>
+                    View
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : (
+        <p>No matching data found.</p>
+      )}
     </div>
   );
 }
