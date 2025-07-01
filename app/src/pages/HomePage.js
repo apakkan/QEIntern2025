@@ -7,15 +7,12 @@ function DetailsPage() {
   const [functionality, setFunctionality] = useState('');
   const [allData, setAllData] = useState([]);
 
-  useEffect(() => {
-    fetch("https://pasqu-mbxvvr59-eastus2.cognitiveservices.azure.com/")
+ useEffect(() => {
+    fetch("http://localhost:5000/api/requirements")
       .then(res => res.json())
-      .then(data => {
-        console.log('API response:', data);
-        setAllData(Array.isArray(data) ? data : data.items || []);
-      })
+      .then(data => setAllData(Array.isArray(data) ? data : []))
       .catch(err => setAllData([]));
-  }, []);
+ }, []);
 
   //dropdown
   const models = Array.from(new Set(allData.map(item => item.model))).filter(Boolean);
