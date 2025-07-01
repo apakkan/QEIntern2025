@@ -17,7 +17,6 @@ client = AzureOpenAI(
     api_key=API_KEY,
 )
 
-#Prompt user for story
 user_story = input("Enter a user story to generate test cases: ")
 
 # Generate test cases

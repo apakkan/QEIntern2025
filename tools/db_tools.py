@@ -1,7 +1,7 @@
 import psycopg2
 import os
 from dotenv import load_dotenv
-from database.qtest_db import connect_db
+from app.public.qtest_db import connect_db
 from database.embedding_utils import get_embedding
 from database.rag_utils import find_similar_requirements
 from agno.tools import tool
