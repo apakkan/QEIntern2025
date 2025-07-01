@@ -26,6 +26,11 @@ services:
       - QTEST_REQUIREMENTS_PARENT_ID=11061822
       - QTEST_TESTCASES_PARENT_ID=11061822
       - PYTHONPATH=/app  # Ensure the app directory is in the Python path
+      - NEO4J_URI=${NEO4J_URI}
+      - NEO4J_USERNAME=${NEO4J_USERNAME}
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD}
+      - AURA_INSTANCEID=${AURA_INSTANCEID}
+      - AURA_INSTANCENAME=${AURA_INSTANCENAME}
     volumes:
       - .:/app
     command: python test/test_query_postgres.py  # Command to run the application
