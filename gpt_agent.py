@@ -10,7 +10,7 @@ from agno import memory
 from agno.models.azure import AzureOpenAI as AgnoAzureModel
 import sys
 from tools.db_tools import query_postgres, vector_search_tool, query_postgres_tool
-from database.qtest_db import connect_db
+from database.qtest_db import connect_db, insert_testcases
 from database.embedding_utils import get_embedding
 from database.rag_utils import insert_refined_requirement
 
@@ -95,20 +95,24 @@ def refine_requirement(raw_requirement: list) -> list:
 def generate_test_cases_tool(raw_requirement: list) -> list:
     """Send enriched requirements to LLM to generate test cases for each story."""
     formatted = "\n".join([
-        f"{s['story_number']}: {s['user_story']} - {s['description']} | Related: {s.get('related_stories', [])} | Group: {s.get('functionality_group', [])}"
+        f"{s['story_number']}: {s['user_story']} - {s['description']}"
         for s in raw_requirement
     ])
     messages = [
         {
             "role": "system",
-            "content": ("You are a quality engineer and testing. For each story below, return:\n"
-                        "- story_number: the story number\n"
-                        "- test_cases: list of suggested test cases\n"
-                        "- edge_cases: edge or tricky inputs\n"
-                        "- shared_tests: any tests that apply to its related stories\n"
-                        "- regression_impact: feature/stories that should be retested if this changes\n\n"
-                        "Make sure to analyze related stories and functionality groups. If multiple stories share functioality reflect that in shared_tests\n"
-                        "Respond in JSON array format, one object per story, and include the story_number in each object."),
+            "content": ("you are a test automation assistant.\n"
+                        "Your task is to generate test cases for the following user stories.\n"
+                        "Given the followimg user story and description, do the following:\n"
+                        "1. identify the relevant test scenarios that cover the behavior described.\n"
+                        "2. For each test case, return:\n"
+                        "- test_case_id: unique identifier for the test case, use the format 'TC-XXX' ( e.g., 'TC-001', 'TC-002', ...)\n"
+                        "- title: a short, descriptive title for the test case\n"
+                        "- test_description: a berief description of what the test case will validate\n"
+                        "For each user story you need to return the number of the user story, a test_case_id, title, and test_description.\n"
+                        "Make sure each test case is clear, tracble, and testable.\n"
+                        "Include both positive and negative test cases if relevant.\n"
+                        "Respond in JSON array, one object per test case."),
          },
         { "role": "user", "content": formatted }
     ]
@@ -133,7 +137,6 @@ class RequirementAgent(Agent):
     def run(self, **kwargs):
         """Run requirement analysis using the LLM and write to the database."""
         raw_requirements = kwargs["raw_requirements"]
-       # return refine_requirement(raw_requirements)
 
         req_output = refine_requirement(raw_requirements)
         req_output_clean = strip_code_blocks(req_output)
@@ -168,67 +171,61 @@ class TestAgent(Agent):
     memory = memory.Memory(memory="")
 
     def run(self, **kwargs):
-        """Run test case generation in batches to avoid LLM truncation."""
         raw_requirements = kwargs["raw_requirements"]
-        req_analysis = kwargs["req_analysis"]
-
-        # Map story number to requirement analysis
-        analysis_map = {r['story_number']: r for r in req_analysis}
-
-        # Group by functionality
-        functionality_map = {}
-        for r in req_analysis:
-            functionality = r.get('functionality', 'Unknown')
-            functionality_map.setdefault(functionality, []).append(r["story_number"])
-
-        # Enrich stories with related stories and functionality group
-        enriched_stories = []
+        all_results = []
+        db_test_cases = []
         for story in raw_requirements:
-            sn = story['story_number']
-            ra = analysis_map.get(sn, {})
-            enriched_stories.append({
-                "story_number": sn,
-                "user_story": story['user_story'],
-                "description": story['description'],
-                "related_stories": ra.get('related_stories', []),
-                "functionality_group": functionality_map.get(ra.get('functionality', 'Unknown'), [])
+            llm_output = generate_test_cases_tool([story])
+            def strip_code_blocks(text):
+                if text is None:
+                    return ''
+                return text.replace('```json', '').replace('```', '').strip()
+            llm_output_clean = strip_code_blocks(llm_output)
+            try:
+                test_cases = json.loads(llm_output_clean)
+            except Exception as e:
+                print(f"Error parsing test agent output for story {story['story_number']}: {e}\nOutput was: {llm_output_clean}")
+                test_cases = []
+            if isinstance(test_cases, dict):
+                test_cases = [test_cases]
+            all_results.append({
+                "story_number": story["story_number"],
+                "test_cases": test_cases
+            })
+            # Collect for DB
+            for tc in test_cases:
+                db_test_cases.append({
+                    "requirement_id": story["story_number"],
+                    "title": tc.get('title', ""),
+                    "test_case_description": tc.get('test_description', "")
+                })
+        # Write all test cases to DB at once, using your connection logic
+        conn = connect_db()
+        db_test_cases = []
+        for tc in test_cases:
+            db_test_cases.append({
+                "story_number": story["story_number"],
+                "requirement_id": story["story_number"],
+                "title": tc.get('title', ""),
+                "test_case_description": tc.get('test_description', "")
             })
 
-        # Batch the enriched stories to avoid LLM truncation (default 5 per batch)
-        batch_size = 5
-        all_test_cases = []
-        for i in range(0, len(enriched_stories), batch_size):
-            batch = enriched_stories[i:i+batch_size]
-            llm_output = generate_test_cases_tool(batch)
-            def strip_code_blocks(text):
-                #if text.strip().startswith('```'):
-                if isinstance(text, str) and text.strip().startswith('```'):
-                    return '\n'.join(line for line in text.splitlines() if not line.strip().startswith('```'))
-                return text
-            cleaned = strip_code_blocks(llm_output)
-            try:
-                if isinstance(cleaned,str):
-                    test_cases = json.loads(cleaned)
-                else:
-                    test_cases = cleaned
-            except Exception as e:
-                print(f"Error parsing LLM output: {e}\nOutput: {llm_output}")
-                continue
-            all_test_cases.extend(test_cases)
+        if db_test_cases:
+            insert_testcases(conn, db_test_cases)
+        if conn:
+            conn.close()
+        return all_results
+        
 
-        return all_test_cases
 
 if __name__ == "__main__":
 
     # Fetch raw requirements from the database
     raw_requirements = fetch_raw_requirements()
 
-
-
     # Run requirement analysis and write to database
     req_agent = RequirementAgent()
-
-    req_agent.run(raw_requirements=raw_requirements)
+    req_output = req_agent.run(raw_requirements=raw_requirements)
 
     # Fetch analyzed requirements from the database
     req_analysis = fetch_analyzed_requirements()
@@ -236,8 +233,6 @@ if __name__ == "__main__":
     # Run test case generation (batched)
     test_agent = TestAgent()
     test_output = test_agent.run(raw_requirements=raw_requirements, req_analysis=req_analysis)
-    #save_to_excel(test_output, "output_test_cases.xlsx")
     print(json.dumps(test_output, indent=2))
-
 
 
