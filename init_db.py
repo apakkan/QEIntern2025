@@ -1,4 +1,4 @@
-from database.qtest_db import connect_db, create_tables, get_qtest_requirements, insert_requirement
+from app.public.qtest_db import connect_db, create_tables, get_qtest_requirements, insert_requirement
 
 def main():
     conn = connect_db()

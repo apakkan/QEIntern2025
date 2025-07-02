@@ -33,7 +33,7 @@ services:
       - AURA_INSTANCENAME=${AURA_INSTANCENAME}
     volumes:
       - .:/app
-    command: python test/test_query_postgres.py  # Command to run the application
+    command: python test/test_query_postgres.py
 
   maindb:
     image: pgvector/pgvector:pg17
@@ -44,7 +44,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data  # Persistent volume
+      - postgres_data:/var/lib/postgresql/data
 
 volumes:
-  postgres_data:  # Named volume for persistence
+  postgres_data:

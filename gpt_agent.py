@@ -9,6 +9,7 @@ from agno import memory
 from agno.models.azure import AzureOpenAI as AgnoAzureModel
 import sys
 from tools.db_tools import query_postgres, vector_search_tool, query_postgres_tool
+from app.public.qtest_db import connect_db, insert_testcases
 from database.qtest_db import connect_db, upsert_central_vector, insert_testcases
 from database.embedding_utils import get_embedding
 from database.rag_utils import insert_refined_requirement

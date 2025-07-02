@@ -1,10 +1,13 @@
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 import time
 import psycopg2
-import os
 import requests
 import json
 from database.embedding_utils import get_embedding
 from dotenv import load_dotenv
+
 
 load_dotenv()
 
@@ -326,6 +329,7 @@ if __name__ == "__main__":
         create_tables(conn)
 
         # Fetch and insert requirements
+        
         requirements = get_qtest_requirements()
         if requirements:
             for req in requirements:
@@ -336,6 +340,8 @@ if __name__ == "__main__":
                     description=req.get("description", ""),
                     status=req.get("status", "New")
                 )
+            with open("requirements.json", "w") as f:
+                json.dump(requirements, f, indent=2)
 
         # Fetch and insert test cases
         testcases = get_qtest_testcases()
