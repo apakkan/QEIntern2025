@@ -104,24 +104,58 @@ def generate_test_cases_tool(raw_requirement: list) -> list:
     messages = [
         {
             "role": "system",
-            "content": (
-                "You are a test automation assistant specialized in generating comprehensive test cases from user stories. "
-                "Your goal is to create test cases that cover: "
-                "Functional testing, Integration testing, API testing, End-to-End (E2E) testing, Compliance, User Roles, and Permissions.\n"
-                "For each user story: "
-                "- Identify positive and negative test scenarios.\n"
-                "- Include preconditions, test steps, expected results, and test data where applicable.\n"
-                "- Ensure clarity, traceability, and alignment with acceptance criteria.\n"
-                "- Focus on acceptance criteria, end-to-end process validation, user roles, permissions, and compliance.\n"
-                "- Include regulatory and audit requirements if mentioned.\n"
-                "Output structure (JSON): For each user story, return an object with these fields: "
-                "executive_summary (string), user_story (string), happy_path_summary (string), "
-                "scenario_table (list of objects: Test Case ID, Brief Description), "
-                "detailed_test_cases (list of objects: Test Case ID, EPIC, Feature, User Story, Business Process, Sub-Process Title, Activity Title, Test Scenario Title, Precondition, Test Data, T-Code, SAP Fiori Application ID, User Role, Detailed Test Steps, Expected Result, Dependent Module/Process). "
-                "Respond in a JSON array, one object per user story."
-            )
+            "content": ("you are a test automation assistant.\n"
+                        "Your task is to generate test cases for the following user stories.\n"
+                        "Given the following user story and description, do the following:\n"
+                        "1. identify the relevant test scenarios that cover the behavior described.\n"
+                        "2. For each test case, return:\n"
+                        "- test_case_id: unique identifier for the test case, use the format 'TC-XXX' ( e.g., 'TC-001', 'TC-002', ...)\n"
+                        "- title: a short, descriptive title for the test case\n"
+                        "- test_description: a berief description of what the test case will validate\n"
+                        "For each user story you need to return the number of the user story, a test_case_id, title, and test_description.\n"
+                        "Make sure each test case is clear, tracble, and testable.\n"
+                        "Include both positive and negative test cases if relevant.\n"
+                        "Respond in JSON array, one object per test case.")
         },
         { "role": "user", "content": formatted }
+    ]
+    response = client.chat.completions.create(
+        model=DEPLOYMENT_NAME,
+        messages=messages
+    )
+    return response.choices[0].message.content
+
+def find_relations(raw_requirement: list) -> list:
+    """Send requirements to LLM for analysis (related stories, functionality)."""
+
+    formatted_stories = "\n".join([
+        f"Story {s['story_number']}: {s['user_story']} | Related: {s.get('related_stories', [])}" for s in user_stories
+    ])
+    formatted_cases = "\n".join([
+        f"TestCase {tc['test_case_id']} (Story {tc['story_number']}): {tc['title']} - {tc.get('test_description', '')}" for tc in test_cases
+    ])
+    formatted = f"User Stories:\n{formatted_stories}\n\nTest Cases:\n{formatted_cases}"
+    
+    messages = [
+        {
+            "role": "system",
+            "content": ("You are a requirements and test case relation analysis assistant.\n"
+            "You will be given a list of user stories and a list of test cases.\n"
+            "Each user story has: story_number, user_story, related_stories.\n"
+            "Each test case has: test_case_id, title, test_description, and is linked to a user story by story_number.\n\n"
+            "Your tasks:\n"
+            "1. For every user story, calculate a 'relation percentage' (0-100) to every other user story, based on semantic similarity, related_stories, and content.\n"
+            "2. For every test case, calculate a 'relation percentage' (0-100) to its own user story, based on semantic similarity and relevance.\n\n"
+            "Return your answer as a JSON object with two keys:\n"
+            "  'user_story_relations': {story_number: {other_story_number: percentage, ...}, ...}\n"
+            "  'test_case_to_story_relations': {test_case_id: percentage, ...}\n\n"
+            "Be concise and only output the JSON object.\n"
+            "Here is the data:\n"),
+        },
+        {
+            "role": "user",
+            "content": f"Analyze the following requirements:\n\n {formatted}",
+        }
     ]
     response = client.chat.completions.create(
         model=DEPLOYMENT_NAME,
@@ -238,7 +272,8 @@ class TestAgent(Agent):
             db_test_cases.append({
                 "requirement_id": tc.get('story_number'),
                 "title": tc.get('title', ""),
-                "test_case_description": tc.get('test_description', "")
+                "test_case_description": tc.get('test_description', ""),
+                "test_case_id": tc.get('test_case_id', ""),
             })
         if db_test_cases:
             insert_testcases(conn, db_test_cases)
