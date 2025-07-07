@@ -297,16 +297,7 @@ class RelationAgent(Agent):
     def run(self, **kwargs):
         user_stories = kwargs["user_stories"]
         test_cases = kwargs["test_cases"]
-        print("user stories passed")
 
-        for s in user_stories:
-            print(s['story_number'],s.get('related_stories'))
-        for s in user_stories:
-            if isinstance(s.get('related_stories'), str):
-                try:
-                    s['related_stories'] = json.loads(s['related_stories'])
-                except json.JSONDecodeError:
-                    s['related_stories'] = []
         rel_output = find_relations(user_stories, test_cases)
         rel_output_clean = strip_code_blocks(rel_output)
         try:
@@ -314,6 +305,52 @@ class RelationAgent(Agent):
         except Exception as e:
             print(f"Error parsing relation agent output: {e}\nOutput was: {rel_output_clean}")
             return {}
+        
+        conn = connect_db()
+        user_story_relations = rel_output_dict.get('user_story_relations', {})
+        for story_number, relations in user_story_relations.items():
+            upsert_central_vector(
+                conn,
+                story_number=story_number,
+                source='relation_agent',
+                title=None,
+                description=None,
+                user_persona=None,
+                user_story=None,
+                functionality=None,
+                related_stories=[int(k) for k in relations.keys() if str(k).isdigit()],
+                business_priority=None,
+                agent_output=relations,
+                embedding=None  # No embedding for relations
+            )
+
+        test_case_relations = rel_output_dict.get('test_case_to_story_relations', {})
+        for test_case_id, percentage in test_case_relations.items():
+            linked_story_number = None
+            for tc in test_cases:
+                if tc.get('test_case_id') == test_case_id:
+                    linked_story_number = tc.get('story_number')
+                    break
+            upsert_central_vector(
+                conn,
+                story_number=linked_story_number,
+                source='relation_agent_test_case',
+                title=test_case_id,
+                description=None,
+                user_persona=None,
+                user_story=None,
+                functionality=None,
+                related_stories=None,
+                business_priority=None,
+                agent_output={
+                    "test_case_id": test_case_id,
+                    "relation_percentage": percentage,
+                    "linked_story_number": linked_story_number
+                },
+                embedding=None  # No embedding for relations
+            )
+        if conn:
+            conn.close()
         return rel_output_dict
     
 
