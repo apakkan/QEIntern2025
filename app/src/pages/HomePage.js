@@ -5,96 +5,226 @@ function DetailsPage() {
   const [project, setProject] = useState('');
   const [release, setRelease] = useState('');
   const [functionality, setFunctionality] = useState('');
-  const [allData, setAllData] = useState([]);
+  const [requirements, setRequirements] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [dbStatus, setDbStatus] = useState(null);
 
- useEffect(() => {
-    fetch("http://localhost:5000/api/requirements")
-      .then(res => res.json())
-      .then(data => setAllData(Array.isArray(data) ? data : []))
-      .catch(err => setAllData([]));
- }, []);
+  // Add new state variables for dropdown options
+  const [modelOptions, setModelOptions] = useState([]);
+  const [projectOptions, setProjectOptions] = useState([]);
+  const [releaseOptions, setReleaseOptions] = useState([]);
+  const [functionalityOptions, setFunctionalityOptions] = useState([]);
 
-  //dropdown
-  const models = Array.from(new Set(allData.map(item => item.model))).filter(Boolean);
-  const projects = Array.from(new Set(allData.map(item => item.project))).filter(Boolean);
-  const releases = Array.from(new Set(allData.map(item => item.release))).filter(Boolean);
-  const functionalities = Array.from(new Set(allData.map(item => item.functionality))).filter(Boolean);
+  useEffect(() => {
+    const checkDatabaseStatus = async () => {
+      try {
+        console.log('Checking database status...');
+        const response = await fetch('http://localhost:8000/');
+        const data = await response.json();
+        console.log('Database status:', data);
+        setDbStatus(data);
+        
+        if (data.database_initialized) {
+          console.log('Database initialized');
+          return true;
+        }
+        throw new Error(`Database not properly initialized: ${JSON.stringify(data)}`);
+      } catch (error) {
+        console.error('Database check failed:', error);
+        setError(`Database connection failed: ${error.message}. Please ensure the backend is running.`);
+        setLoading(false);
+        return false;
+      }
+    };
 
-  // Filtering
-  const filteredData = Array.isArray(allData) ? allData.filter((item) => {
-    return (
-      (!model || item.model === model) &&
-      (!project || item.project === project) &&
-      (!release || item.release === release) &&
-      (!functionality || item.functionality === functionality)
-    );
-  }) : [];
+    // Add function to extract unique values for dropdowns
+    const updateDropdownOptions = (data) => {
+      const uniqueModels = [...new Set(data.map(req => req.model).filter(Boolean))];
+      const uniqueProjects = [...new Set(data.map(req => req.project).filter(Boolean))];
+      const uniqueReleases = [...new Set(data.map(req => req.release).filter(Boolean))];
+      const uniqueFunctionalities = [...new Set(data.map(req => req.functionality).filter(Boolean))];
+
+      setModelOptions(uniqueModels);
+      setProjectOptions(uniqueProjects);
+      setReleaseOptions(uniqueReleases);
+      setFunctionalityOptions(uniqueFunctionalities);
+    };
+
+    const fetchRequirements = async () => {
+      try {
+        console.log('Fetching requirements...');
+        const response = await fetch('http://localhost:8000/requirements/', {
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+          }
+        });
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        console.log('Received requirements:', data);
+        
+        // Transform the data
+        const transformedData = data.map(req => ({
+          id: req.id,
+          title: req.user_story || 'No Title',
+          description: req.description || 'No Description',
+          functionality: req.functionality || 'Not Specified',
+          release: req.release || 'Not Set',
+          priority: req.priority || 'Not Set',
+          model: req.model || 'Not Set',
+          project: req.project || 'Not Set'
+        }));
+        
+        console.log('Transformed data:', transformedData);
+        setRequirements(transformedData);
+        
+        // Update dropdown options
+        const uniqueModels = [...new Set(transformedData.map(req => req.model))];
+        const uniqueProjects = [...new Set(transformedData.map(req => req.project))];
+        const uniqueReleases = [...new Set(transformedData.map(req => req.release))];
+        const uniqueFunctionalities = [...new Set(transformedData.map(req => req.functionality))];
+        
+        setModelOptions(uniqueModels.filter(m => m !== 'Not Set'));
+        setProjectOptions(uniqueProjects.filter(p => p !== 'Not Set'));
+        setReleaseOptions(uniqueReleases.filter(r => r !== 'Not Set'));
+        setFunctionalityOptions(uniqueFunctionalities.filter(f => f !== 'Not Set'));
+        
+        setLoading(false);
+      } catch (error) {
+        console.error('Error fetching requirements:', error);
+        setError(error.message);
+        setLoading(false);
+      }
+    };
+
+    const initializeData = async () => {
+      const dbReady = await checkDatabaseStatus();
+      if (dbReady) {
+        await fetchRequirements();
+      }
+    };
+
+    initializeData();
+  }, []);
+
+  // Add filtering logic for the dropdowns
+  const filteredRequirements = requirements.filter(req => {
+    return (!model || req.model === model) &&
+           (!project || req.project === project) &&
+           (!release || req.release === release) &&
+           (!functionality || req.functionality === functionality);
+  });
+
+  if (loading) {
+    console.log('Loading requirements...');
+    return <div>Loading...</div>;
+  }
+
+  if (error) {
+    return <div>Error: {error}</div>;
+  }
 
   return (
     <div style={styles.container}>
       <div style={styles.filterPanel}>
-        {/* Model Dropdown */}
         <div style={styles.selectGroup}>
           <label style={styles.label}>Model:</label>
-          <select value={model} onChange={e => setModel(e.target.value)} style={styles.select}>
+          <select value={model} onChange={(e) => setModel(e.target.value)} style={styles.select}>
             <option value="">-- Select Model --</option>
-            {models.map(m => <option key={m} value={m}>{m}</option>)}
+            {modelOptions.map(option => (
+              <option key={option} value={option}>{option}</option>
+            ))}
           </select>
         </div>
-        {/* Project Dropdown */}
+
         <div style={styles.selectGroup}>
           <label style={styles.label}>Project Name:</label>
-          <select value={project} onChange={e => setProject(e.target.value)} style={styles.select}>
+          <select value={project} onChange={(e) => setProject(e.target.value)} style={styles.select}>
             <option value="">-- Select Project --</option>
-            {projects.map(p => <option key={p} value={p}>{p}</option>)}
+            {projectOptions.map(option => (
+              <option key={option} value={option}>{option}</option>
+            ))}
           </select>
         </div>
-        {/* Release Dropdown */}
+
         <div style={styles.selectGroup}>
           <label style={styles.label}>Release:</label>
-          <select value={release} onChange={e => setRelease(e.target.value)} style={styles.select}>
+          <select value={release} onChange={(e) => setRelease(e.target.value)} style={styles.select}>
             <option value="">-- Select Release --</option>
-            {releases.map(r => <option key={r} value={r}>{r}</option>)}
+            {releaseOptions.map((releaseOpt) => (
+              <option key={releaseOpt} value={releaseOpt}>{releaseOpt}</option>
+            ))}
           </select>
         </div>
-        {/* Functionality Dropdown */}
+
         <div style={styles.selectGroup}>
           <label style={styles.label}>Functionality:</label>
-          <select value={functionality} onChange={e => setFunctionality(e.target.value)} style={styles.select}>
+          <select value={functionality} onChange={(e) => setFunctionality(e.target.value)} style={styles.select}>
             <option value="">-- Select Functionality --</option>
-            {functionalities.map(f => <option key={f} value={f}>{f}</option>)}
+            {functionalityOptions.map((funcOpt) => (
+              <option key={funcOpt} value={funcOpt}>{funcOpt}</option>
+            ))}
           </select>
         </div>
       </div>
 
-      {/* Table */}
-      <h3>Filtered Feature Table</h3>
-      {filteredData.length > 0 ? (
+      <h3>Requirements Table</h3>
+      {loading ? (
+        <div style={styles.loadingContainer}>
+          <div style={styles.loadingText}>Loading requirements...</div>
+          <div style={styles.loadingSpinner}></div>
+        </div>
+      ) : error ? (
+        <div style={styles.errorContainer}>
+          <div style={styles.errorMessage}>
+            <h3>Error Loading Requirements</h3>
+            <p>{error}</p>
+            <div style={styles.errorDetails}>
+              <p>Please check:</p>
+              <ul>
+                <li>Backend server is running</li>
+                <li>Database connection is active</li>
+                <li>Requirements table exists and has data</li>
+              </ul>
+            </div>
+            <button 
+              style={styles.retryButton}
+              onClick={() => window.location.reload()}
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      ) : filteredRequirements.length > 0 ? (
         <table style={styles.table}>
           <thead>
             <tr>
               <th style={styles.th}>ID</th>
-              <th style={styles.th}>Item</th>
+              <th style={styles.th}>User Story</th>
               <th style={styles.th}>Description</th>
-              <th style={styles.th}>Model</th>
-              <th style={styles.th}>Project</th>
-              <th style={styles.th}>Release</th>
               <th style={styles.th}>Functionality</th>
-              <th style={styles.th}></th>
+              <th style={styles.th}>Release</th>
+              <th style={styles.th}>Priority</th>
+              <th style={styles.th}>Actions</th>
             </tr>
           </thead>
           <tbody>
-            {filteredData.map(row => (
+            {filteredRequirements.map((row) => (
               <tr key={row.id}>
                 <td style={styles.td}>{row.id}</td>
-                <td style={styles.td}>{row.name}</td>
-                <td style={styles.td}>{row.description || 'No description available'}</td>
-                <td style={styles.td}>{row.model}</td>
-                <td style={styles.td}>{row.project}</td>
-                <td style={styles.td}>{row.release}</td>
+                <td style={styles.td}>{row.title}</td>
+                <td style={styles.td}>{row.description}</td>
                 <td style={styles.td}>{row.functionality}</td>
+                <td style={styles.td}>{row.release}</td>
+                <td style={styles.td}>{row.priority}</td>
                 <td style={styles.td}>
-                  <button style={styles.actionButton} onClick={() => window.location.href = `/item/${row.id}`}>
+                  <button 
+                    style={styles.actionButton} 
+                    onClick={() => window.location.href = `/item/${row.id}`}
+                  >
                     View
                   </button>
                 </td>
@@ -103,7 +233,7 @@ function DetailsPage() {
           </tbody>
         </table>
       ) : (
-        <p>No matching data found.</p>
+        <p>No requirements found.</p>
       )}
     </div>
   );
@@ -188,6 +318,54 @@ const styles = {
     fontWeight: 'bold',
     transition: 'background 0.2s'
   },
+  loadingContainer: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '2rem',
+  },
+  loadingSpinner: {
+    width: '40px',
+    height: '40px',
+    margin: '20px',
+    border: '4px solid #f3f3f3',
+    borderTop: '4px solid #0070AD',
+    borderRadius: '50%',
+    animation: 'spin 1s linear infinite',
+  },
+  errorContainer: {
+    display: 'flex',
+    justifyContent: 'center',
+    padding: '2rem',
+  },
+  errorMessage: {
+    backgroundColor: '#fff',
+    padding: '2rem',
+    borderRadius: '8px',
+    boxShadow: '0 2px 8px rgba(0,112,173,0.08)',
+    textAlign: 'center',
+  },
+  errorDetails: {
+    marginTop: '1rem',
+    padding: '1rem',
+    backgroundColor: '#ffebee',
+    borderRadius: '4px',
+    color: '#c62828'
+  },
+  loadingText: {
+    color: '#0070AD',
+    marginBottom: '1rem'
+  },
+  retryButton: {
+    padding: '0.5rem 1rem',
+    backgroundColor: '#0070AD',
+    color: 'white',
+    border: 'none',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    marginTop: '1rem',
+  }
 };
 
 

@@ -1,10 +1,12 @@
 services:
   app:
-    build: .
-    depends_on:
-      - maindb
+    container_name: qeintern2025_app
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped 
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/mydb
+      - DATABASE_URL=postgresql://postgres:postgres@maindb:5432/mydb
       - POSTGRES_DB=${POSTGRES_DB}
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
@@ -25,26 +27,45 @@ services:
       - QTEST_API_KEY=${QTEST_API_KEY}
       - QTEST_REQUIREMENTS_PARENT_ID=11061822
       - QTEST_TESTCASES_PARENT_ID=11061822
-      - PYTHONPATH=/app  # Ensure the app directory is in the Python path
+      - PYTHONPATH=/app
       - NEO4J_URI=${NEO4J_URI}
       - NEO4J_USERNAME=${NEO4J_USERNAME}
       - NEO4J_PASSWORD=${NEO4J_PASSWORD}
       - AURA_INSTANCEID=${AURA_INSTANCEID}
       - AURA_INSTANCENAME=${AURA_INSTANCENAME}
     volumes:
-      - .:/app
-    command: python test/test_query_postgres.py
+      - ./:/app:ro
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    depends_on:
+      maindb:
+        condition: service_healthy
 
   maindb:
+    container_name: qeintern2025_db
     image: pgvector/pgvector:pg17
+    restart: unless-stopped  # Add restart policy
     environment: 
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d mydb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data:rw
 
 volumes:
   postgres_data:
+    driver: local

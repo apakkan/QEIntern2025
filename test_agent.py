@@ -5,7 +5,6 @@ from dotenv import load_dotenv
 
 load_dotenv()   
 
-
 API_KEY = os.getenv("API_KEY")
 API_VERSION = os.getenv("API_VERSION")
 ENDPOINT = os.getenv("ENDPOINT")

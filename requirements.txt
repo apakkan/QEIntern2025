@@ -8,3 +8,5 @@ requests
 sqlalchemy
 langchain-openai
 langchain-neo4j
+uvicorn[standard]
+fastapi

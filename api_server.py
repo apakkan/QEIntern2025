@@ -1,135 +1,158 @@
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-import os
+from fastapi.middleware.cors import CORSMiddleware
 import psycopg2
-from neo4j import GraphDatabase
-from typing import List, Optional
+import os
+import logging
 
 app = FastAPI()
 
-# --- PostgreSQL Connection ---
+# Set up logging at the top of the file
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
+#middle
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://20.75.85.193:3000"],
+    allow_credentials=False,
+    allow_methods=["GET", "POST"],  # Add POST here
+    allow_headers=["*"],
+)
+
 def get_pg_conn():
-    return psycopg2.connect(
-        database=os.environ.get("POSTGRES_DB", "mydb"),
-        user=os.environ.get("POSTGRES_USER", "postgres"),
-        password=os.environ.get("POSTGRES_PASSWORD", "postgres"),
-        host=os.environ.get("POSTGRES_HOST", "maindb"),
-        port=os.environ.get("POSTGRES_PORT", "5432")
-    )
+    try:
+        conn = psycopg2.connect(
+            database=os.environ.get("POSTGRES_DB", "mydb"),
+            user=os.environ.get("POSTGRES_USER", "postgres"),
+            password=os.environ.get("POSTGRES_PASSWORD", "postgres"),
+            host=os.environ.get("POSTGRES_HOST", "maindb"),
+            port=os.environ.get("POSTGRES_PORT", "5432")
+        )
+        return conn
+    except Exception as e:
+        logger.error(f"Database connection error: {str(e)}")
+        raise
 
-# --- Neo4j Connection ---
-def get_neo4j_driver():
-    uri = os.environ.get("NEO4J_URI")
-    user = os.environ.get("NEO4J_USERNAME")
-    pwd = os.environ.get("NEO4J_PASSWORD")
-    return GraphDatabase.driver(uri, auth=(user, pwd))
+@app.get("/")
+async def root():
+    try:
+        logger.info("Root endpoint called")
+        conn = get_pg_conn()
+        cur = conn.cursor()
+        
+        # Check if requirements table exists instead of refinedrequirements
+        cur.execute("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_name = 'requirements'
+            );
+        """)
+        table_exists = cur.fetchone()[0]
+        
+        logger.info(f"Table exists: {table_exists}")
+        
+        row_count = 0
+        if table_exists:
+            cur.execute("SELECT COUNT(*) FROM requirements")
+            row_count = cur.fetchone()[0]
+            logger.info(f"Row count: {row_count}")
+            
+        cur.close()
+        conn.close()
+        
+        return {
+            "status": "ok", 
+            "database_initialized": table_exists,
+            "requirement_count": row_count
+        }
+            
+    except Exception as e:
+        logger.error(f"Database error: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Database connection failed: {str(e)}"
+        )
 
-# --- Pydantic Models ---
-class Requirement(BaseModel):
-    story_number: int
-    title: Optional[str]
-    description: Optional[str]
-    status: Optional[str]
+@app.get("/requirements/")
+async def get_requirements():
+    try:
+        conn = get_pg_conn()
+        cur = conn.cursor()
+        
+        logger.info("Fetching requirements...")
+        cur.execute("""
+            SELECT 
+                id,
+                user_story,
+                description,
+                functionality,
+                release,
+                priority,
+                model,
+                project
+            FROM requirements;
+        """)
+        
+        rows = cur.fetchall()
+        logger.info(f"Found {len(rows)} requirements")
+        
+        requirements = []
+        for row in rows:
+            requirement = {
+                "id": row[0],
+                "user_story": row[1] or "",
+                "description": row[2] or "",
+                "functionality": row[3] or "",
+                "release": row[4] or "",  # sprint mapped to release
+                "priority": row[5] or "",  # business_priority mapped to priority
+                "model": row[6] or "",
+                "project": row[7] or ""
+            }
+            requirements.append(requirement)
+            logger.info(f"Processed requirement: {requirement['id']}")
+        
+        return requirements
+        
+    except Exception as e:
+        logger.error(f"Error fetching requirements: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if 'cur' in locals():
+            cur.close()
+        if 'conn' in locals():
+            conn.close()
 
-class TestCase(BaseModel):
-    id: int
-    requirement_id: int
-    title: Optional[str]
-    test_case_description: Optional[str]
-
-# --- API Endpoints ---
-
-@app.get("/requirements/", response_model=List[Requirement])
-def get_requirements():
+@app.post("/requirements/")
+async def create_requirement(requirement: dict):
     conn = get_pg_conn()
     cur = conn.cursor()
-    cur.execute("SELECT id, title, description, status FROM requirements")
-    rows = cur.fetchall()
-    cur.close()
-    conn.close()
-    return [
-        Requirement(
-            story_number=row[0],
-            title=row[1],
-            description=row[2],
-            status=row[3]
-        ) for row in rows
-    ]
-
-@app.get("/testcases/", response_model=List[TestCase])
-def get_testcases():
-    conn = get_pg_conn()
-    cur = conn.cursor()
-    cur.execute("SELECT id, requirement_id, title, test_case_description FROM testcases")
-    rows = cur.fetchall()
-    cur.close()
-    conn.close()
-    return [
-        TestCase(
-            id=row[0],
-            requirement_id=row[1],
-            title=row[2],
-            test_case_description=row[3]
-        ) for row in rows
-    ]
-
-@app.get("/testcases/requirement/{requirement_id}", response_model=List[TestCase])
-def get_testcases_for_requirement(requirement_id: int):
-    conn = get_pg_conn()
-    cur = conn.cursor()
-    cur.execute("SELECT id, requirement_id, title, test_case_description FROM testcases WHERE requirement_id = %s", (requirement_id,))
-    rows = cur.fetchall()
-    cur.close()
-    conn.close()
-    return [
-        TestCase(
-            id=row[0],
-            requirement_id=row[1],
-            title=row[2],
-            test_case_description=row[3]
-        ) for row in rows
-    ]
-
-@app.get("/kg/requirement/{story_number}")
-def get_kg_requirement(story_number: int):
-    driver = get_neo4j_driver()
-    with driver.session() as session:
-        result = session.run(
-            "MATCH (r:Requirement {story_number: $story_number}) RETURN r",
-            story_number=story_number
-        )
-        record = result.single()
-        if not record:
-            raise HTTPException(status_code=404, detail="Requirement not found in KG")
-        node = record["r"]
-        return dict(node)
-
-@app.get("/kg/testcase/{test_case_id}")
-def get_kg_testcase(test_case_id: int):
-    driver = get_neo4j_driver()
-    with driver.session() as session:
-        result = session.run(
-            "MATCH (t:TestCase {test_case_id: $test_case_id}) RETURN t",
-            test_case_id=test_case_id
-        )
-        record = result.single()
-        if not record:
-            raise HTTPException(status_code=404, detail="Test case not found in KG")
-        node = record["t"]
-        return dict(node)
-
-@app.get("/kg/requirement/{story_number}/testcases")
-def get_kg_testcases_for_requirement(story_number: int):
-    driver = get_neo4j_driver()
-    with driver.session() as session:
-        result = session.run(
-            """
-            MATCH (r:Requirement {story_number: $story_number})-[:HAS_TEST_CASE]->(t:TestCase)
-            RETURN t
-            """,
-            story_number=story_number
-        )
-        testcases = [dict(record["t"]) for record in result]
-        if not testcases:
-            raise HTTPException(status_code=404, detail="No test cases found for this requirement in KG")
-        return testcases
+    try:
+        # Make sure to use the exact column names from your database schema
+        cur.execute("""
+            INSERT INTO requirements 
+            (id, user_story, description, functionality, release, priority, model, project)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+        """, (
+            requirement['id'],
+            requirement['user_story'],
+            requirement['description'],
+            requirement['functionality'],
+            requirement['release'],      # This matches the database column
+            requirement['priority'],     # This matches the database column
+            requirement['model'],
+            requirement['project']
+        ))
+        requirement_id = cur.fetchone()[0]
+        conn.commit()
+        
+        logger.info(f"Requirement created with ID: {requirement_id}")
+        return {**requirement, "id": requirement_id}
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"Error creating requirement: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        cur.close()
+        conn.close()
