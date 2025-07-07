@@ -125,14 +125,16 @@ def generate_test_cases_tool(raw_requirement: list) -> list:
     )
     return response.choices[0].message.content
 
-def find_relations(raw_requirement: list) -> list:
+def find_relations(user_stories: list, test_cases: list) -> list:
     """Send requirements to LLM for analysis (related stories, functionality)."""
 
+    filtered_stories = [s for s in user_stories if 'user_story' in s and 'related_stories' in s]
     formatted_stories = "\n".join([
-        f"Story {s['story_number']}: {s['user_story']} | Related: {s.get('related_stories', [])}" for s in user_stories
+        f"Story {s['story_number']}: {s['user_story']} | Related: {s.get('related_stories', [])}" for s in filtered_stories
     ])
     formatted_cases = "\n".join([
-        f"TestCase {tc['test_case_id']} (Story {tc['story_number']}): {tc['title']} - {tc.get('test_description', '')}" for tc in test_cases
+        f"TestCase {tc.get('test_case_id', 'N/A')} (Story {tc.get('story_number', 'N/A')}): {tc.get('title', 'N/A')} - {tc.get('test_description', '')}"
+        for tc in test_cases if 'story_number' in tc
     ])
     formatted = f"User Stories:\n{formatted_stories}\n\nTest Cases:\n{formatted_cases}"
     
@@ -141,11 +143,11 @@ def find_relations(raw_requirement: list) -> list:
             "role": "system",
             "content": ("You are a requirements and test case relation analysis assistant.\n"
             "You will be given a list of user stories and a list of test cases.\n"
-            "Each user story has: story_number, user_story, related_stories.\n"
+            "Each user story has: story_number, user_story, and related_stories.\n"
             "Each test case has: test_case_id, title, test_description, and is linked to a user story by story_number.\n\n"
             "Your tasks:\n"
-            "1. For every user story, calculate a 'relation percentage' (0-100) to every other user story, based on semantic similarity, related_stories, and content.\n"
-            "2. For every test case, calculate a 'relation percentage' (0-100) to its own user story, based on semantic similarity and relevance.\n\n"
+            "1. For every user story, calculate a 'relation percentage' (0-100) only to the stories related to the user story. Use semantic similarity, related_stories, and content. When possible, estimate this as if you were using cosine similarity between vector embeddings of the stories.\n"
+            "2. For every test case, calculate a 'relation percentage' (0-100) to its own user story, using semantic similarity and relevance. Again, estimate this as if you were using cosine similarity between the test case and the user story embeddings.\n\n"
             "Return your answer as a JSON object with two keys:\n"
             "  'user_story_relations': {story_number: {other_story_number: percentage, ...}, ...}\n"
             "  'test_case_to_story_relations': {test_case_id: percentage, ...}\n\n"
@@ -263,6 +265,12 @@ class TestAgent(Agent):
             except Exception as e:
                 print(f"Error parsing LLM output: {e}\nOutput: {llm_output}")
                 continue
+            for tc in test_cases:
+                if 'story_number' not in tc:
+                    if 'requirement_id' in tc:
+                        tc['story_number'] = tc['requirement_id']
+                    elif 'story_number' in batch[0]:
+                        tc['story_number'] = batch[0]['story_number']
             all_test_cases.extend(test_cases)
 
         # Optionally, write all test cases to DB
@@ -280,6 +288,34 @@ class TestAgent(Agent):
         if conn:
             conn.close()
         return all_test_cases
+    
+
+class RelationAgent(Agent):
+    tools = [find_relations]
+    memory = memory.Memory(memory="")
+
+    def run(self, **kwargs):
+        user_stories = kwargs["user_stories"]
+        test_cases = kwargs["test_cases"]
+        print("user stories passed")
+
+        for s in user_stories:
+            print(s['story_number'],s.get('related_stories'))
+        for s in user_stories:
+            if isinstance(s.get('related_stories'), str):
+                try:
+                    s['related_stories'] = json.loads(s['related_stories'])
+                except json.JSONDecodeError:
+                    s['related_stories'] = []
+        rel_output = find_relations(user_stories, test_cases)
+        rel_output_clean = strip_code_blocks(rel_output)
+        try:
+            rel_output_dict = json.loads(rel_output_clean)
+        except Exception as e:
+            print(f"Error parsing relation agent output: {e}\nOutput was: {rel_output_clean}")
+            return {}
+        return rel_output_dict
+    
 
 def get_requirements_from_kg():
     results = graph.query("MATCH (r:Requirement) RETURN r")
@@ -320,7 +356,7 @@ if __name__ == "__main__":
     # Run requirement analysis and write to database/KG
     req_agent = RequirementAgent()
     req_output_list = req_agent.run(raw_requirements=raw_requirements)
-    print(json.dumps(req_output_list, indent=2))
+    #print(json.dumps(req_output_list, indent=2))
 
     # Fetch analyzed requirements from the database
     req_analysis = fetch_analyzed_requirements()
@@ -328,7 +364,12 @@ if __name__ == "__main__":
     # Run test case generation (batched)
     test_agent = TestAgent()
     test_output = test_agent.run(raw_requirements=raw_requirements, req_analysis=req_analysis)
-    print(json.dumps(test_output, indent=2))
+    #print(json.dumps(test_output, indent=2))
+
+
+    relation_agent = RelationAgent()
+    relation_output = relation_agent.run(user_stories=req_analysis, test_cases=test_output)
+    print(json.dumps(relation_output, indent=2))
 
     # Upsert requirements to Postgres
     conn = connect_db()
