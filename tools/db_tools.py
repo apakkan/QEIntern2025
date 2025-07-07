@@ -12,19 +12,22 @@ def query_postgres(sql_query: str):
     """
     Execute a raw SQL query on the PostgreSQL database and return all results.
     """
-    conn = psycopg2.connect(
-        database=os.environ.get("POSTGRES_DB", "mydb"),
-        user=os.environ.get("POSTGRES_USER", "postgres"),
-        password=os.environ.get("POSTGRES_PASSWORD", "postgres"),
-        host=os.environ.get("POSTGRES_HOST", "maindb"),
-        port=os.environ.get("POSTGRES_PORT", "5432")
-    )
-    cur = conn.cursor()
-    cur.execute(sql_query)
-    rows = cur.fetchall()
-    cur.close()
-    conn.close()
-    return rows
+    try:
+        conn = psycopg2.connect(
+            database=os.environ.get("POSTGRES_DB", "mydb"),
+            user=os.environ.get("POSTGRES_USER", "postgres"),
+            password=os.environ.get("POSTGRES_PASSWORD", "postgres"),
+            host=os.environ.get("POSTGRES_HOST", "maindb"),
+            port=os.environ.get("POSTGRES_PORT", "5432")
+        )
+        cur = conn.cursor()
+        cur.execute(sql_query)
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        return rows
+    except Exception as e:
+        return f"Postgres error: {e}"
 
 @tool
 def query_postgres_tool(sql_query: str):
@@ -45,3 +48,11 @@ def vector_search_tool(query: str, top_k: int = 3):
         {"id": row[0], "title": row[1], "description": row[2], "distance": row[3]}
         for row in results
     ]
+
+def query_pg(sql):
+    """
+    Run a SQL query on the Postgres database and return the results.
+    Usage: query_pg("SELECT * FROM requirements LIMIT 5")
+    """
+    rows = query_postgres(sql)
+    return str(rows)
