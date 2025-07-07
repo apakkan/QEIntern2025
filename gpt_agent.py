@@ -171,6 +171,34 @@ def strip_code_blocks(text):
         return ''
     return text.replace('```json', '').replace('```', '').strip()
 
+def analyze_risk(user_stories: list) -> str:
+    """Analyze risk based on user stories."""
+    formatted = "\n".join([
+        f"{s['story_number']}: {s['user_story']} - {s['description']}"
+        for s in user_stories
+    ])
+    messages = [
+        {
+            "role": "system",
+            "content": ("You are a risk analysis assistant. Given a list of user stories, "
+                        "for each user story, assign a business priority (High, Medium, Low) based on its impact, complexity, and potential risk.\n"
+                        "return a JSON array, one object per user story with the following fields:\n"
+                        "story_number, user_story, and business_priority."),
+        },
+        {
+            "role": "user",
+            "content": f"Analyze the following user stories for risk/priority:\n\n {formatted}",
+        }
+    ]
+    response = client.chat.completions.create(
+        model=DEPLOYMENT_NAME,
+        messages=messages
+    )
+    return response.choices[0].message.content
+   
+
+
+
 class RequirementAgent(Agent):
     tools = [refine_requirement]
     memory = memory.Memory(memory="")
@@ -288,7 +316,7 @@ class TestAgent(Agent):
         if conn:
             conn.close()
         return all_test_cases
-    
+
 
 class RelationAgent(Agent):
     tools = [find_relations]
@@ -354,6 +382,41 @@ class RelationAgent(Agent):
         return rel_output_dict
     
 
+class RiskAgent(Agent):
+    tools = [analyze_risk]
+    memory = memory.Memory(memory="")
+
+    def run(self, **kwargs):
+        user_stories = kwargs["user_stories"]
+        risk_output = analyze_risk(user_stories)
+        risk_output_clean = strip_code_blocks(risk_output)
+        try:
+            risk_output_list = json.loads(risk_output_clean)
+        except Exception as e:
+            print(f"Error parsing risk agent output: {e}\nOutput was: {risk_output_clean}")
+            return []
+
+        # Upsert risk analysis to the database
+        conn = connect_db()
+        for risk in risk_output_list:
+            upsert_central_vector(
+                conn,
+                story_number=risk.get('story_number'),
+                source='risk_agent',
+                title=None,
+                description=None,
+                user_persona=None,
+                user_story=risk.get('user_story'),
+                functionality=None,
+                related_stories=None,
+                business_priority=risk.get('business_priority'),
+                agent_output=risk,
+                embedding=None  # No embedding for risk analysis
+            )
+        if conn:
+            conn.close()
+        return risk_output_list
+
 def get_requirements_from_kg():
     results = graph.query("MATCH (r:Requirement) RETURN r")
     return [record['r'] for record in results]
@@ -406,7 +469,12 @@ if __name__ == "__main__":
 
     relation_agent = RelationAgent()
     relation_output = relation_agent.run(user_stories=req_analysis, test_cases=test_output)
-    print(json.dumps(relation_output, indent=2))
+    #print(json.dumps(relation_output, indent=2))
+
+    # Run risk analysis
+    risk_agent = RiskAgent()
+    risk_output = risk_agent.run(user_stories=raw_requirements)
+    print(json.dumps(risk_output, indent=2))
 
     # Upsert requirements to Postgres
     conn = connect_db()
