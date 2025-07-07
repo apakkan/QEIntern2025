@@ -8,3 +8,6 @@ requests
 sqlalchemy
 langchain-openai
 langchain-neo4j
+langgraph
+langmem
+langchain
