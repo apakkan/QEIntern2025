@@ -93,7 +93,8 @@ integration_agent.system_prompt = (
 )
 
 if __name__ == "__main__":
-    memory.clear()
+    print(f"Using user_id: {user_id}")  # <-- Add this line
+    # memory.clear()
     print("Start chatting with the integration agent! Type 'exit' to quit.")
     while True:
         user_input = input("You: ")

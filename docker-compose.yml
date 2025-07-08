@@ -35,8 +35,9 @@ services:
       - AZURE_OPENAI_ENDPOINT=${AZURE_OPENAI_ENDPOINT}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
     volumes:
-      - .:/app
-    command: python test/test_query_postgres.py  # Command to run the application
+      - ./tmp:/app/tmp
+    command: python test/test_agent_full_integration.py
+    user: "${UID}:${GID}"
 
   maindb:
     image: pgvector/pgvector:pg17
@@ -44,8 +45,8 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
-    ports:
-      - "5432:5432"
+    #ports:
+     # - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data  # Persistent volume
 
