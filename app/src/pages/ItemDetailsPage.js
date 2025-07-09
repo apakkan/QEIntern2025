@@ -1,93 +1,77 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-//import ChatBot from '../components/ChatBot';
-
-const mockData = [
-  {
-    id: 1,
-    name: 'As a Case Worker, I want to intake a new Medicaid application so that I can begin the eligibility process.',
-    functionality: 'Application Intake',
-    description: 'Enable intake of new applications with basic applicant details.',
-    priority: 'High',
-  },
-  {
-    id: 2,
-    name: 'As a Case Worker, I want to verify applicant identity using government ID so that I can ensure accurate records.',
-    functionality: 'General Access & Eligibility',
-    description: 'Integrate ID verification with DMV or SSA databases.',
-    priority: 'Medium',
-  },
-  {
-    id: 3,
-    name: 'As a Case Worker, I want to check income eligibility using wage data so that I can determine financial qualification.',
-    functionality: 'Eligibility Verification',
-    description: 'Connect to income verification systems like The Work Number.',
-    priority: 'Low',
-  },
-  {
-    id: 4,
-    name: 'As a Case Worker, I want to record household composition so that I can assess eligibility based on family size.',
-    functionality: 'Eligibility Verification',
-    description: 'Capture household members and their relationships.',
-    priority: 'High',
-  },
-  {
-    id: 5,
-    name: 'As a Case Worker, I want to flag incomplete applications so that I can follow up with applicants.',
-    functionality: 'Application Intake',
-    description: 'System should highlight missing fields and documents.',
-    priority: 'Medium',
-  }
-];
 
 function ItemDetailsPage() {
   const { id } = useParams();
-  const item = mockData.find((d) => d.id === parseInt(id));
-  const [showPopup, setShowPopup] = React.useState(false);
+  const [item, setItem] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [showPopup, setShowPopup] = useState(false);
+  const [relatedStories, setRelatedStories] = useState([]); // Initialize empty array
+  const [testCases, setTestCases] = useState([]); // Initialize empty array
 
-  const relatedStories = [
-    {
-      id: 1,
-      name: 'Story 1',
-      description: 'Handles user login flow.',
-      relationship: 92,
-    },
-    {
-      id: 2,
-      name: 'Story 2',
-      description: 'Handles password reset.',
-      relationship: 78,
-    },
-  ];
-  const testCases = [
-    {
-      id: 'TC-101',
-      title: 'Login with valid credentials',
-      description: 'Ensures user can log in with correct username and password.',
-      coverage: 95,
-    },
-    {
-      id: 'TC-102',
-      title: 'Reset password flow',
-      description: 'Tests the password reset email and confirmation.',
-      coverage: 88,
-    },
-  ];
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        // Fetch requirement details
+        console.log('Fetching requirement details for ID:', id);
+        const reqResponse = await fetch(`http://localhost:8000/requirements/${id}`);
+        
+        if (!reqResponse.ok) {
+          if (reqResponse.status === 404) {
+            throw new Error('Requirement not found');
+          }
+          throw new Error(`HTTP error! status: ${reqResponse.status}`);
+        }
+        
+        const reqData = await reqResponse.json();
+        setItem({
+          id: reqData.id,
+          name: reqData.user_story,
+          description: reqData.description || 'No Description',
+          functionality: reqData.functionality || 'Not Specified',
+          priority: reqData.priority || 'Not Set',
+          release: reqData.release || 'Not Set',
+          project: reqData.project || 'Core System'
+        });
+
+        // Fetch related stories
+        console.log('Fetching related stories...');
+        const relatedResponse = await fetch(`http://localhost:8000/requirements/${id}/related-stories`);
+        if (!relatedResponse.ok) {
+          throw new Error(`Error fetching related stories: ${relatedResponse.status}`);
+        }
+        const relatedData = await relatedResponse.json();
+        console.log('Found related stories:', relatedData);
+        setRelatedStories(relatedData);
+        
+        setLoading(false);
+      } catch (error) {
+        console.error('Error:', error);
+        setError(error.message);
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [id]);
 
   const getPriorityColor = (priority) => {
-    switch (priority) {
-      case 'High':
+    switch (priority?.toLowerCase()) {
+      case 'high':
         return '#ff4d4f';
-      case 'Medium':
+      case 'medium':
         return '#faad14';
-      case 'Low':
+      case 'low':
         return '#52c41a';
       default:
         return '#d9d9d9';
     }
   };
 
-  if (!item) return <p style={{ padding: '2rem' }}>Item not found.</p>;
+  if (loading) return <div style={{ padding: '2rem' }}>Loading...</div>;
+  if (error) return <div style={{ padding: '2rem' }}>Error: {error}</div>;
+  if (!item) return <div style={{ padding: '2rem' }}>Item not found.</div>;
 
   const handleDownload = (type) => {
     setShowPopup(false);
@@ -107,6 +91,8 @@ function ItemDetailsPage() {
         <p><strong>ID:</strong> {item.id}</p>
         <p><strong>Description:</strong> {item.description}</p>
         <p><strong>Functionality:</strong> {item.functionality}</p>
+        <p><strong>Project:</strong> {item.project}</p>
+        <p><strong>Release:</strong> {item.release}</p>
         <p>
           <strong>Priority:</strong>{' '}
           <span style={{

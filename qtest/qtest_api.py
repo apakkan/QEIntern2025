@@ -84,4 +84,43 @@ def create_qtest_testcase(conn, name, description, requirement_id=None):
         print(f"Failed to create test case in qTest: {response.status_code} {response.text}")
         return None
 
+def process_properties(user_story, properties):
+    functionality = ""
+    project = ""
+    for prop in properties:
+        field_name = prop.get('field_name', '')
+        if field_name == 'Type':
+            functionality_type = prop.get('field_value_name', '')
+            # Map functionality based on user story content
+            if 'application intake' in user_story.lower():
+                functionality = 'Application Intake'
+            elif 'eligibility' in user_story.lower():
+                functionality = 'Eligibility Verification'
+            elif 'document' in user_story.lower() or 'upload' in user_story.lower():
+                functionality = 'Document Management'
+            elif 'notification' in user_story.lower() or 'alert' in user_story.lower():
+                functionality = 'Notifications'
+            elif 'report' in user_story.lower():
+                functionality = 'Reporting'
+            elif 'case' in user_story.lower():
+                functionality = 'Case Management'
+            else:
+                functionality = functionality_type
+            print(f"Set functionality to: {functionality}")
+        elif field_name == 'Project':  # Add this new section
+            project_value = prop.get('field_value_name') or prop.get('field_value', '')
+            if project_value:
+                project = project_value.strip()
+                print(f"Set project to: {project}")
+            else:
+                # Map project based on user story content or set default
+                if 'CDSS' in user_story:
+                    project = 'CDSS'
+                elif 'CBMS' in user_story:
+                    project = 'CBMS'
+                else:
+                    project = 'Core System'  # Default project
+            print(f"Set project to: {project}")
+    return functionality, project
+
 

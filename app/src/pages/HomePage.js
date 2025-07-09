@@ -54,44 +54,68 @@ function DetailsPage() {
     const fetchRequirements = async () => {
       try {
         console.log('Fetching requirements...');
-        const response = await fetch('http://localhost:8000/requirements/', {
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
-          }
-        });
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
+        const response = await fetch('http://localhost:8000/requirements/');
         const data = await response.json();
-        console.log('Received requirements:', data);
         
-        // Transform the data
-        const transformedData = data.map(req => ({
-          id: req.id,
-          title: req.user_story || 'No Title',
-          description: req.description || 'No Description',
-          functionality: req.functionality || 'Not Specified',
-          release: req.release || 'Not Set',
-          priority: req.priority || 'Not Set',
-          model: req.model || 'Not Set',
-          project: req.project || 'Not Set'
-        }));
+        console.log('Raw data from API:', data); // Debug log
         
-        console.log('Transformed data:', transformedData);
+        // Update the fetchRequirements function's transformedData section
+        const transformedData = data.map(req => {
+            console.log('Processing requirement:', req);
+            return {
+                id: req.id,
+                title: req.user_story,
+                description: req.description || 'No Description',
+                functionality: req.functionality || 'Not Specified',
+                release: req.release || '',
+                priority: req.priority || 'Not Set',
+                model: req.model || '',
+                project: req.project || 'Core System'
+            };
+        });
+        
+        console.log('Transformed data:', transformedData); // Debug log
         setRequirements(transformedData);
-        
-        // Update dropdown options
-        const uniqueModels = [...new Set(transformedData.map(req => req.model))];
-        const uniqueProjects = [...new Set(transformedData.map(req => req.project))];
-        const uniqueReleases = [...new Set(transformedData.map(req => req.release))];
-        const uniqueFunctionalities = [...new Set(transformedData.map(req => req.functionality))];
-        
-        setModelOptions(uniqueModels.filter(m => m !== 'Not Set'));
-        setProjectOptions(uniqueProjects.filter(p => p !== 'Not Set'));
-        setReleaseOptions(uniqueReleases.filter(r => r !== 'Not Set'));
-        setFunctionalityOptions(uniqueFunctionalities.filter(f => f !== 'Not Set'));
-        
+
+        // Update release options with improved filtering
+        const uniqueReleases = transformedData
+          .map(req => req.release)
+          .filter(release => release && release.trim() !== '') // Remove empty and whitespace-only values
+          .reduce((unique, release) => {
+            if (!unique.includes(release)) {
+              unique.push(release);
+            }
+            return unique;
+          }, [])
+          .sort();
+
+        console.log('Filtered releases before setting state:', uniqueReleases); // Debug log
+        setReleaseOptions(uniqueReleases);
+
+        // Update functionality options
+        const uniqueFunctionalities = transformedData
+          .map(req => req.functionality)
+          .filter(func => func && func !== 'Not Specified')
+          .reduce((unique, func) => {
+            if (!unique.includes(func)) {
+              unique.push(func);
+            }
+            return unique;
+          }, [])
+          .sort();
+
+        console.log('Filtered functionalities before setting state:', uniqueFunctionalities);
+        setFunctionalityOptions(uniqueFunctionalities);
+
+        // Update the project options filtering
+        const uniqueProjects = [...new Set(transformedData
+          .map(req => req.project)
+          .filter(proj => proj && proj.trim() !== ''))]
+          .sort();
+
+        console.log('Available projects:', uniqueProjects);
+        setProjectOptions(uniqueProjects);
+
         setLoading(false);
       } catch (error) {
         console.error('Error fetching requirements:', error);
@@ -109,13 +133,26 @@ function DetailsPage() {
 
     initializeData();
   }, []);
-
-  // Add filtering logic for the dropdowns
+  
+  // Update the filtering logic
   const filteredRequirements = requirements.filter(req => {
-    return (!model || req.model === model) &&
-           (!project || req.project === project) &&
-           (!release || req.release === release) &&
-           (!functionality || req.functionality === functionality);
+    console.log('Filtering requirement:', {
+        id: req.id,
+        functionality: req.functionality,
+        project: req.project,
+        release: req.release,
+        currentFilters: { functionality, project, release }
+    });
+
+    const functionalityMatch = !functionality || 
+        (req.functionality && req.functionality.toLowerCase() === functionality.toLowerCase());
+    const projectMatch = !project || 
+        (req.project && req.project.toLowerCase() === project.toLowerCase());
+    const releaseMatch = !release || 
+        (req.release && req.release.toLowerCase() === release.toLowerCase());
+
+    console.log('Matches:', { functionalityMatch, projectMatch, releaseMatch });
+    return functionalityMatch && projectMatch && releaseMatch;
   });
 
   if (loading) {
@@ -127,12 +164,35 @@ function DetailsPage() {
     return <div>Error: {error}</div>;
   }
 
+  // Update the select handlers to include console logging
+  const handleModelChange = (e) => {
+    console.log('Model selected:', e.target.value);
+    setModel(e.target.value);
+  };
+
+  const handleProjectChange = (e) => {
+    console.log('Project selected:', e.target.value);
+    setProject(e.target.value);
+  };
+
+  const handleReleaseChange = (e) => {
+    const value = e.target.value;
+    console.log('Release selected:', value);
+    setRelease(value);
+  };
+
+  const handleFunctionalityChange = (e) => {
+    const value = e.target.value;
+    console.log('Functionality selected:', value);
+    setFunctionality(value);
+  };
+
   return (
     <div style={styles.container}>
       <div style={styles.filterPanel}>
         <div style={styles.selectGroup}>
           <label style={styles.label}>Model:</label>
-          <select value={model} onChange={(e) => setModel(e.target.value)} style={styles.select}>
+          <select value={model} onChange={handleModelChange} style={styles.select}>
             <option value="">-- Select Model --</option>
             {modelOptions.map(option => (
               <option key={option} value={option}>{option}</option>
@@ -142,7 +202,7 @@ function DetailsPage() {
 
         <div style={styles.selectGroup}>
           <label style={styles.label}>Project Name:</label>
-          <select value={project} onChange={(e) => setProject(e.target.value)} style={styles.select}>
+          <select value={project} onChange={handleProjectChange} style={styles.select}>
             <option value="">-- Select Project --</option>
             {projectOptions.map(option => (
               <option key={option} value={option}>{option}</option>
@@ -152,20 +212,20 @@ function DetailsPage() {
 
         <div style={styles.selectGroup}>
           <label style={styles.label}>Release:</label>
-          <select value={release} onChange={(e) => setRelease(e.target.value)} style={styles.select}>
+          <select value={release} onChange={handleReleaseChange} style={styles.select}>
             <option value="">-- Select Release --</option>
-            {releaseOptions.map((releaseOpt) => (
-              <option key={releaseOpt} value={releaseOpt}>{releaseOpt}</option>
+            {releaseOptions.map(option => (
+              <option key={option} value={option}>{option}</option>
             ))}
           </select>
         </div>
 
         <div style={styles.selectGroup}>
           <label style={styles.label}>Functionality:</label>
-          <select value={functionality} onChange={(e) => setFunctionality(e.target.value)} style={styles.select}>
+          <select value={functionality} onChange={handleFunctionalityChange} style={styles.select}>
             <option value="">-- Select Functionality --</option>
-            {functionalityOptions.map((funcOpt) => (
-              <option key={funcOpt} value={funcOpt}>{funcOpt}</option>
+            {functionalityOptions.map(option => (
+              <option key={option} value={option}>{option}</option>
             ))}
           </select>
         </div>

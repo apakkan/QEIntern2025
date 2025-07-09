@@ -45,42 +45,118 @@ def create_tables(conn):
             requirements = get_qtest_requirements()
             if requirements:
                 for req in requirements:
-                    # Debug the requirement structure
-                    print(f"Processing requirement: {req}")
-                    
-                    # Safely extract values using dict.get() with default values
                     try:
-                        req_id = req[0] if isinstance(req, list) else req.get('id', None)
-                        user_story = req[1] if isinstance(req, list) else req.get('name', '')
-                        description = req[2] if isinstance(req, list) else req.get('description', '')
+                        # Extract basic fields
+                        req_id = req.get('id')
+                        user_story = req.get('name', '')
                         
-                        # Handle properties differently based on data structure
-                        properties = req[3] if isinstance(req, list) else req.get('properties', {})
-                        if isinstance(properties, dict):
-                            functionality = properties.get('Functionality', '')
-                            release = properties.get('Release', '')
-                            priority = properties.get('Business Priority', '')
-                        else:
-                            functionality = ''
-                            release = ''
-                            priority = ''
+                        # Extract properties from the properties list
+                        properties = req.get('properties', [])
+                        print("\nAll properties:")
+                        for prop in properties:
+                            print(f"Field: {prop.get('field_name')}, Value: {prop.get('field_value')}, Value Name: {prop.get('field_value_name')}")
                         
+                        description = ''
+                        functionality = ''
+                        release = ''
+                        priority = ''
+                        project = ''  # Initialize project variable
+                        
+                        # Process each property in the list
+                        for prop in properties:
+                            field_name = prop.get('field_name')
+                            print(f"\nProcessing field: {field_name}")
+                            print(f"Raw property data: {prop}")
+                            
+                            if field_name == 'Description':
+                                description = prop.get('field_value', '')
+                            elif field_name == 'Type':
+                                functionality_type = prop.get('field_value_name', '')
+                                # Map functionality based on user story content
+                                if 'application intake' in user_story.lower():
+                                    functionality = 'Application Intake'
+                                elif 'eligibility' in user_story.lower():
+                                    functionality = 'Eligibility Verification'
+                                elif 'document' in user_story.lower() or 'upload' in user_story.lower():
+                                    functionality = 'Document Management'
+                                elif 'notification' in user_story.lower() or 'alert' in user_story.lower():
+                                    functionality = 'Notifications'
+                                elif 'report' in user_story.lower():
+                                    functionality = 'Reporting'
+                                elif 'case' in user_story.lower():
+                                    functionality = 'Case Management'
+                                else:
+                                    functionality = functionality_type
+                                print(f"Set functionality to: {functionality}")
+                            elif field_name == 'Sprint' or field_name == 'Release':  # Check both field names
+                                print(f"\nFound {field_name} field:")
+                                print(f"Raw data: {prop}")
+                                
+                                # Try to get the value in this order:
+                                # 1. field_value_name (display name)
+                                # 2. field_value (actual value)
+                                # 3. value (direct value)
+                                sprint_value = None
+                                
+                                if prop.get('field_value_name'):
+                                    sprint_value = prop.get('field_value_name')
+                                    print(f"Using field_value_name: {sprint_value}")
+                                elif prop.get('field_value'):
+                                    sprint_value = prop.get('field_value')
+                                    print(f"Using field_value: {sprint_value}")
+                                elif prop.get('value'):
+                                    sprint_value = prop.get('value')
+                                    print(f"Using value: {sprint_value}")
+                                
+                                if sprint_value and str(sprint_value).strip():
+                                    release = str(sprint_value).strip()
+                                    print(f"Set release/sprint to: {release}")
+                                else:
+                                    print(f"No valid sprint/release value found in property: {prop}")
+                            elif field_name == 'Priority':
+                                priority = prop.get('field_value_name', '')
+                            elif field_name == 'Project':  # Add this new section
+                                project_value = prop.get('field_value_name') or prop.get('field_value', '')
+                                if project_value:
+                                    project = project_value.strip()
+                                    print(f"Set project to: {project}")
+                                else:
+                                    # Map project based on user story content or set default
+                                    if 'CDSS' in user_story:
+                                        project = 'CDSS'
+                                    elif 'CBMS' in user_story:
+                                        project = 'CBMS'
+                                    else:
+                                        project = 'Core System'  # Default project
+                                print(f"Set project to: {project}")
+
+                        print(f"\nFinal values for requirement {req_id}:")
+                        print(f"User Story: {user_story[:100]}...")  # Show first 100 chars
+                        print(f"Description: {description[:100]}...")
+                        print(f"Functionality: {functionality}")
+                        print(f"Release/Sprint: {release}")
+                        print(f"Priority: {priority}")
+
                         if req_id is not None:
                             cur.execute('''
                                 INSERT INTO requirements 
-                                (id, user_story, description, functionality, release, priority)
-                                VALUES (%s, %s, %s, %s, %s, %s)
+                                (id, user_story, description, functionality, release, priority, model, project)
+                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                             ''', (
                                 req_id,
                                 user_story,
                                 description,
                                 functionality,
                                 release,
-                                priority
+                                priority,
+                                '',  # model
+                                ''   # project
                             ))
                             print(f"Inserted requirement ID: {req_id}")
+                            print(f"Data: description={description}, functionality={functionality}, release={release}, priority={priority}")
                     except Exception as e:
                         print(f"Error processing requirement: {e}")
+                        print(f"Raw requirement data: {req}")
                         continue
                 
                 conn.commit()

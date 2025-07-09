@@ -29,7 +29,7 @@ def connect_db(retries=RETRY_COUNT, delay=RETRY_DELAY):
                 database=os.environ.get("POSTGRES_DB", "mydb"),
                 user=os.environ.get("POSTGRES_USER", "postgres"),
                 password=os.environ.get("POSTGRES_PASSWORD", "postgres"),
-                host=os.environ.get("POSTGRES_HOST", "maindb"),
+                host=os.environ.get("POSTGRES_HOST", "qeintern2025_db"),  # Changed from maindb
                 port=os.environ.get("POSTGRES_PORT", "5432")
             )
             return conn

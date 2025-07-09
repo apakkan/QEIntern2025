@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
   app:
     container_name: qeintern2025_app
@@ -6,7 +8,7 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped 
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@maindb:5432/mydb
+      - DATABASE_URL=postgresql://postgres:postgres@qeintern2025_db:5432/mydb  # Fix this
       - POSTGRES_DB=${POSTGRES_DB}
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
@@ -38,8 +40,10 @@ services:
     ports:
       - "8000:8000"
     depends_on:
-      qeintern2025_db:  # Update this to match container name
+      qeintern2025_db:  # Updated this to match container name
         condition: service_healthy
+    networks:
+      - app_network
 
   qeintern2025_db:  # Update service name to match container name
     container_name: qeintern2025_db
@@ -58,6 +62,13 @@ services:
       - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - app_network
+
+networks:
+  app_network:
+    name: qeintern2025_network
+    driver: bridge
 
 volumes:
   postgres_data:
