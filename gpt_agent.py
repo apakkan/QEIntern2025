@@ -18,6 +18,7 @@ import time
 # Load environment variables from .env file
 load_dotenv()
 
+# --- Azure OpenAI and Neo4j Setup ---
 API_KEY = os.getenv("API_KEY")
 API_VERSION = os.getenv("API_VERSION")
 ENDPOINT = os.getenv("ENDPOINT")
@@ -30,20 +31,16 @@ client = OpenAIAzureClient(
     azure_endpoint=ENDPOINT,
 )
 
-azure_model = AgnoAzureModel(
-    id="gpt-4.1",  # or your deployment/model name
-    api_key=API_KEY,
-    azure_endpoint=ENDPOINT,
-    azure_deployment=DEPLOYMENT_NAME,
-    api_version=API_VERSION,
-)
 
+
+# Initialize Neo4j graph connection
 graph = Neo4jGraph(
     url=os.getenv('NEO4J_URI'),
     username=os.getenv('NEO4J_USERNAME'),
     password=os.getenv('NEO4J_PASSWORD')
 )
 
+# --- Data Fetching Functions ---
 def fetch_raw_requirements():
     """Fetch raw requirements from the database."""
     rows = query_postgres("SELECT id as story_number, title as user_story, description FROM requirements")
@@ -53,7 +50,7 @@ def fetch_raw_requirements():
     ]
 
 def fetch_analyzed_requirements():
-    """Fetch analyzed requirements from the database. (refinedrequirements label)"""
+    """Fetch analyzed requirements from the database (refinedrequirements table)."""
     rows = query_postgres("SELECT requirement_id, user_persona, user_story, functionality, description, release, related_story, business_priority FROM refinedrequirements")
     return [
         {
@@ -69,6 +66,7 @@ def fetch_analyzed_requirements():
         for row in rows
     ]
 
+# --- LLM Tool Functions ---
 def refine_requirement(raw_requirement: list) -> list:
     """Send requirements to LLM for analysis (related stories, functionality)."""
     formatted = "\n".join([
@@ -174,16 +172,17 @@ def strip_code_blocks(text):
 def analyze_risk(user_stories: list) -> str:
     """Analyze risk based on user stories."""
     formatted = "\n".join([
-        f"{s['story_number']}: {s['user_story']} - {s['description']}"
+        f"{s['story_number']}: Persona {s.get('user_persona', '')} | Story: {s.get('user_story', '')} | Functionality: {s.get('functionality', 'N/A')} | Description: {s.get('description', '')}"
         for s in user_stories
     ])
     messages = [
         {
             "role": "system",
-            "content": ("You are a risk analysis assistant. Given a list of user stories, "
-                        "for each user story, assign a business priority (High, Medium, Low) based on its impact, complexity, and potential risk.\n"
-                        "return a JSON array, one object per user story with the following fields:\n"
-                        "story_number, user_story, and business_priority."),
+            "content": ("You are a risk analysis assistant. For each user story, assign a business Risk Factor value (proiority number) from 1 (highest priority) to 10 (lowest priority) based on:.\n"
+                        "- the user persona (e.g is the persona is a case manager, that increases priority)\n"
+                        "- the functionality field"
+                        "Return a JSON array, one object per user story with the following fields:\n"
+                        "story_number, user_story, User_persona, functionality, and Risk Factor value (priority number)."),
         },
         {
             "role": "user",
@@ -200,6 +199,7 @@ def analyze_risk(user_stories: list) -> str:
 
 
 class RequirementAgent(Agent):
+    """Agent for analyzing requirements and writing results to the database and Neo4j."""
     tools = [refine_requirement]
     memory = memory.Memory(memory="")
 
@@ -252,6 +252,7 @@ class RequirementAgent(Agent):
         return req_output_list
 
 class TestAgent(Agent):
+    """Agent for generating test cases for requirements and writing to the database."""
     tools = [generate_test_cases_tool]
     memory = memory.Memory(memory="")
 
@@ -301,7 +302,7 @@ class TestAgent(Agent):
                         tc['story_number'] = batch[0]['story_number']
             all_test_cases.extend(test_cases)
 
-        # Optionally, write all test cases to DB
+       
         conn = connect_db()
         db_test_cases = []
         for tc in all_test_cases:
@@ -319,6 +320,7 @@ class TestAgent(Agent):
 
 
 class RelationAgent(Agent):
+    """Agent for analyzing relations between user stories and test cases using LLM."""
     tools = [find_relations]
     memory = memory.Memory(memory="")
 
@@ -383,6 +385,7 @@ class RelationAgent(Agent):
     
 
 class RiskAgent(Agent):
+    """Agent for analyzing risk and business priority for user stories."""
     tools = [analyze_risk]
     memory = memory.Memory(memory="")
 
@@ -405,11 +408,11 @@ class RiskAgent(Agent):
                 source='risk_agent',
                 title=None,
                 description=None,
-                user_persona=None,
+                user_persona=risk.get('user_persona'),
                 user_story=risk.get('user_story'),
-                functionality=None,
+                functionality=risk.get('functionality'),
                 related_stories=None,
-                business_priority=risk.get('business_priority'),
+                business_priority=str(risk.get('business_priority')),
                 agent_output=risk,
                 embedding=None  # No embedding for risk analysis
             )
@@ -417,11 +420,14 @@ class RiskAgent(Agent):
             conn.close()
         return risk_output_list
 
+# --- Utility Functions ---
 def get_requirements_from_kg():
+    """Fetch requirements from the Neo4j knowledge graph."""
     results = graph.query("MATCH (r:Requirement) RETURN r")
     return [record['r'] for record in results]
 
 def batch_upsert_requirements_to_neo4j(requirements, embeddings, batch_size=1):
+    """Batch upsert requirements and their embeddings to Neo4j."""
     from langchain_neo4j import Neo4jGraph
     import os, time
     for i in range(0, len(requirements), batch_size):
@@ -449,6 +455,7 @@ def batch_upsert_requirements_to_neo4j(requirements, embeddings, batch_size=1):
             """, {"story_number": req.get('story_number'), "properties": properties})
         time.sleep(0.5)
 
+# --- Main Workflow ---
 if __name__ == "__main__":
     # Fetch raw requirements from the database
     raw_requirements = fetch_raw_requirements()
@@ -466,17 +473,17 @@ if __name__ == "__main__":
     test_output = test_agent.run(raw_requirements=raw_requirements, req_analysis=req_analysis)
     #print(json.dumps(test_output, indent=2))
 
-
+    # Run relation analysis between user stories and test cases
     relation_agent = RelationAgent()
     relation_output = relation_agent.run(user_stories=req_analysis, test_cases=test_output)
     #print(json.dumps(relation_output, indent=2))
 
-    # Run risk analysis
+    # Run risk analysis on raw requirements
     risk_agent = RiskAgent()
     risk_output = risk_agent.run(user_stories=raw_requirements)
     print(json.dumps(risk_output, indent=2))
 
-    # Upsert requirements to Postgres
+    # Upsert requirements to Postgres (central vector table)
     conn = connect_db()
     embeddings = []
     for req in req_output_list:
