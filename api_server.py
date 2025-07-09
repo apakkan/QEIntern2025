@@ -110,10 +110,9 @@ async def get_requirements():
                 "model": row[6] or "",
                 "project": row[7] or ""
             }
-            logger.info(f"Requirement {requirement['id']} release value: {requirement['release']}")
             requirements.append(requirement)
         
-        return requirements
+        return requirements  # Ensure this returns a list
         
     except Exception as e:
         logger.error(f"Error fetching requirements: {str(e)}")

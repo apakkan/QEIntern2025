@@ -59,63 +59,57 @@ function DetailsPage() {
         
         console.log('Raw data from API:', data); // Debug log
         
-        // Update the fetchRequirements function's transformedData section
-        const transformedData = data.map(req => {
-            console.log('Processing requirement:', req);
-            return {
-                id: req.id,
-                title: req.user_story,
-                description: req.description || 'No Description',
-                functionality: req.functionality || 'Not Specified',
-                release: req.release || '',
-                priority: req.priority || 'Not Set',
-                model: req.model || '',
-                project: req.project || 'Core System'
-            };
-        });
+        // Add type checking for data
+        if (!Array.isArray(data)) {
+          console.error('API returned non-array data:', data);
+          setRequirements([]);
+          setLoading(false);
+          return;
+        }
         
-        console.log('Transformed data:', transformedData); // Debug log
+        // Update the fetchRequirements function's transformedData section
+        const transformedData = data.map(req => ({
+          id: req.id,
+          title: req.user_story,
+          description: req.description || 'No Description',
+          functionality: req.functionality || 'Not Specified',
+          release: req.release || '',
+          priority: req.priority || 'Not Set',
+          model: req.model || '',
+          project: req.project || 'Core System'
+        }));
+        
+        console.log('Transformed data:', transformedData);
         setRequirements(transformedData);
 
-        // Update release options with improved filtering
-        const uniqueReleases = transformedData
-          .map(req => req.release)
-          .filter(release => release && release.trim() !== '') // Remove empty and whitespace-only values
-          .reduce((unique, release) => {
-            if (!unique.includes(release)) {
-              unique.push(release);
-            }
-            return unique;
-          }, [])
-          .sort();
+        // Update dropdown options with error handling
+        const uniqueReleases = Array.from(new Set(
+          transformedData
+            .map(req => req.release)
+            .filter(release => release && release.trim() !== '')
+        )).sort();
 
-        console.log('Filtered releases before setting state:', uniqueReleases); // Debug log
+        const uniqueFunctionalities = Array.from(new Set(
+          transformedData
+            .map(req => req.functionality)
+            .filter(func => func && func !== 'Not Specified')
+        )).sort();
+
+        const uniqueProjects = Array.from(new Set(
+          transformedData
+            .map(req => req.project)
+            .filter(proj => proj && proj.trim() !== '')
+        )).sort();
+
+        console.log('Filtered options:', {
+          releases: uniqueReleases,
+          functionalities: uniqueFunctionalities,
+          projects: uniqueProjects
+        });
+
         setReleaseOptions(uniqueReleases);
-
-        // Update functionality options
-        const uniqueFunctionalities = transformedData
-          .map(req => req.functionality)
-          .filter(func => func && func !== 'Not Specified')
-          .reduce((unique, func) => {
-            if (!unique.includes(func)) {
-              unique.push(func);
-            }
-            return unique;
-          }, [])
-          .sort();
-
-        console.log('Filtered functionalities before setting state:', uniqueFunctionalities);
         setFunctionalityOptions(uniqueFunctionalities);
-
-        // Update the project options filtering
-        const uniqueProjects = [...new Set(transformedData
-          .map(req => req.project)
-          .filter(proj => proj && proj.trim() !== ''))]
-          .sort();
-
-        console.log('Available projects:', uniqueProjects);
         setProjectOptions(uniqueProjects);
-
         setLoading(false);
       } catch (error) {
         console.error('Error fetching requirements:', error);
