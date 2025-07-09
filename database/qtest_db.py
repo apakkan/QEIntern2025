@@ -69,13 +69,15 @@ def create_tables(conn):
     cursor.execute(f"""
         CREATE TABLE IF NOT EXISTS requirements (
             id INTEGER PRIMARY KEY,
-            user_story TEXT,
+            title TEXT NOT NULL,
             description TEXT,
-            functionality TEXT,
+            status TEXT,
+            priority TEXT,
             sprint TEXT,
-            business_priority TEXT,
-            model TEXT,
-            project TEXT
+            user_persona TEXT,
+            user_story TEXT,
+            functionality TEXT,              
+            embedding vector({OPENAI_EMBEDDING_DIM})
         );
     """)
     cursor.execute("""

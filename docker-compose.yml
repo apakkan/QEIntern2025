@@ -72,4 +72,4 @@ networks:
 
 volumes:
   postgres_data:
-    name: qeintern2025_postgres_data
+    name: qeintern2025_postgres_data_new

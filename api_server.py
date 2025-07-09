@@ -282,3 +282,54 @@ async def get_related_stories(requirement_id: int):
             cur.close()
         if 'conn' in locals():
             conn.close()
+
+@app.get("/requirements/{requirement_id}/test-cases")
+async def get_test_cases(requirement_id: int):
+    try:
+        conn = get_pg_conn()
+        cur = conn.cursor()
+        
+        # First verify the requirement exists
+        cur.execute("""
+            SELECT id FROM requirements WHERE id = %s
+        """, (requirement_id,))
+        
+        if not cur.fetchone():
+            logger.error(f"Requirement {requirement_id} not found")
+            raise HTTPException(status_code=404, detail="Requirement not found")
+        
+        logger.info(f"Fetching test cases for requirement {requirement_id}")
+        
+        # For now, return sample test cases
+        test_cases = [
+            {
+                "id": f"TC_{requirement_id}_1",
+                "title": "Verify Basic Functionality",
+                "description": "Test basic user interaction flow",
+                "coverage": 80
+            },
+            {
+                "id": f"TC_{requirement_id}_2",
+                "title": "Validate Input Fields",
+                "description": "Verify all input validations",
+                "coverage": 90
+            },
+            {
+                "id": f"TC_{requirement_id}_3",
+                "title": "Error Handling",
+                "description": "Test error scenarios and edge cases",
+                "coverage": 75
+            }
+        ]
+        
+        logger.info(f"Returning {len(test_cases)} test cases")
+        return test_cases
+        
+    except Exception as e:
+        logger.error(f"Error in get_test_cases: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if 'cur' in locals():
+            cur.close()
+        if 'conn' in locals():
+            conn.close()

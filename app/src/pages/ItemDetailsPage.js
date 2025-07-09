@@ -44,6 +44,22 @@ function ItemDetailsPage() {
         const relatedData = await relatedResponse.json();
         console.log('Found related stories:', relatedData);
         setRelatedStories(relatedData);
+
+        // Fetch test cases
+        console.log('Fetching test cases...');
+        const testResponse = await fetch(`http://localhost:8000/requirements/${id}/test-cases`);
+        if (!testResponse.ok) {
+          if (testResponse.status === 404) {
+            console.log('No test cases found');
+            setTestCases([]);
+          } else {
+            throw new Error(`Error fetching test cases: ${testResponse.status}`);
+          }
+        } else {
+          const testData = await testResponse.json();
+          console.log('Found test cases:', testData);
+          setTestCases(testData);
+        }
         
         setLoading(false);
       } catch (error) {
