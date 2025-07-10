@@ -110,7 +110,7 @@ def generate_test_cases_tool(raw_requirement: list) -> list:
                         "- test_case_id: unique identifier for the test case, use the format 'TC-XXX' ( e.g., 'TC-001', 'TC-002', ...)\n"
                         "- title: a short, descriptive title for the test case\n"
                         "- test_description: a berief description of what the test case will validate\n"
-                        "For each user story you need to return the number of the user story, a test_case_id, title, and test_description.\n"
+                        "For each user story you need to return a test_case_id, title, and test_description.\n"
                         "Make sure each test case is clear, tracble, and testable.\n"
                         "Include both positive and negative test cases if relevant.\n"
                         "Respond in JSON array, one object per test case.")
@@ -471,7 +471,7 @@ if __name__ == "__main__":
     # Run test case generation (batched)
     test_agent = TestAgent()
     test_output = test_agent.run(raw_requirements=raw_requirements, req_analysis=req_analysis)
-    #print(json.dumps(test_output, indent=2))
+    print(json.dumps(test_output, indent=2))
 
     # Run relation analysis between user stories and test cases
     relation_agent = RelationAgent()
@@ -481,7 +481,7 @@ if __name__ == "__main__":
     # Run risk analysis on raw requirements
     risk_agent = RiskAgent()
     risk_output = risk_agent.run(user_stories=raw_requirements)
-    print(json.dumps(risk_output, indent=2))
+    #print(json.dumps(risk_output, indent=2))
 
     # Upsert requirements to Postgres (central vector table)
     conn = connect_db()
