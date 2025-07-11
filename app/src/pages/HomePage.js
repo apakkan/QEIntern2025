@@ -11,7 +11,7 @@ function DetailsPage() {
   const [dbStatus, setDbStatus] = useState(null);
 
   // Add new state variables for dropdown options
-  const [modelOptions, setModelOptions] = useState([]);
+  const [modelOptions, setModelOptions] = useState(['OpenAI']);
   const [projectOptions, setProjectOptions] = useState([]);
   const [releaseOptions, setReleaseOptions] = useState([]);
   const [functionalityOptions, setFunctionalityOptions] = useState([]);
@@ -76,7 +76,7 @@ function DetailsPage() {
           release: req.release || '',
           priority: req.priority || 'Not Set',
           model: req.model || '',
-          project: req.project || 'Core System'
+          project: req.project || 'Project 1'
         }));
         
         console.log('Transformed data:', transformedData);
@@ -95,21 +95,21 @@ function DetailsPage() {
             .filter(func => func && func !== 'Not Specified')
         )).sort();
 
-        const uniqueProjects = Array.from(new Set(
-          transformedData
-            .map(req => req.project)
-            .filter(proj => proj && proj.trim() !== '')
-        )).sort();
+        // const uniqueProjects = Array.from(new Set(
+        //   transformedData
+        //     .map(req => req.project)
+        //     .filter(proj => proj && proj.trim() !== '')
+        // )).sort();
 
         console.log('Filtered options:', {
           releases: uniqueReleases,
           functionalities: uniqueFunctionalities,
-          projects: uniqueProjects
-        });
+        //   projects: uniqueProjects
+         });
 
         setReleaseOptions(uniqueReleases);
         setFunctionalityOptions(uniqueFunctionalities);
-        setProjectOptions(uniqueProjects);
+        // setProjectOptions(uniqueProjects);
         setLoading(false);
       } catch (error) {
         console.error('Error fetching requirements:', error);
@@ -128,25 +128,19 @@ function DetailsPage() {
     initializeData();
   }, []);
   
-  // Update the filtering logic
+
+  const areSelectionsComplete = () => {
+    return model === 'OpenAI' && project === 'Project 1';
+  };
+
   const filteredRequirements = requirements.filter(req => {
-    console.log('Filtering requirement:', {
-        id: req.id,
-        functionality: req.functionality,
-        project: req.project,
-        release: req.release,
-        currentFilters: { functionality, project, release }
-    });
-
+    if (!areSelectionsComplete()) {
+      return false;
+    }
     const functionalityMatch = !functionality || 
-        (req.functionality && req.functionality.toLowerCase() === functionality.toLowerCase());
-    const projectMatch = !project || 
-        (req.project && req.project.toLowerCase() === project.toLowerCase());
-    const releaseMatch = !release || 
-        (req.release && req.release.toLowerCase() === release.toLowerCase());
+      (req.functionality && req.functionality.toLowerCase() === functionality.toLowerCase());
 
-    console.log('Matches:', { functionalityMatch, projectMatch, releaseMatch });
-    return functionalityMatch && projectMatch && releaseMatch;
+    return functionalityMatch;
   });
 
   if (loading) {
@@ -158,22 +152,25 @@ function DetailsPage() {
     return <div>Error: {error}</div>;
   }
 
-  // Update the select handlers to include console logging
+  // Event handlers
   const handleModelChange = (e) => {
     console.log('Model selected:', e.target.value);
     setModel(e.target.value);
+    setFunctionality('');
   };
 
   const handleProjectChange = (e) => {
     console.log('Project selected:', e.target.value);
     setProject(e.target.value);
+    // Reset functionality when project changes
+    setFunctionality('');
   };
 
-  const handleReleaseChange = (e) => {
-    const value = e.target.value;
-    console.log('Release selected:', value);
-    setRelease(value);
-  };
+  // const handleReleaseChange = (e) => {
+  //   const value = e.target.value;
+  //   console.log('Release selected:', value);
+  //   setRelease(value);
+  // };
 
   const handleFunctionalityChange = (e) => {
     const value = e.target.value;
@@ -188,106 +185,102 @@ function DetailsPage() {
           <label style={styles.label}>Model:</label>
           <select value={model} onChange={handleModelChange} style={styles.select}>
             <option value="">-- Select Model --</option>
-            {modelOptions.map(option => (
-              <option key={option} value={option}>{option}</option>
-            ))}
+            <option value="OpenAI">OpenAI</option>
           </select>
         </div>
 
         <div style={styles.selectGroup}>
           <label style={styles.label}>Project Name:</label>
-          <select value={project} onChange={handleProjectChange} style={styles.select}>
+          <select 
+            value={project} 
+            onChange={handleProjectChange} 
+            style={styles.select}
+          >
             <option value="">-- Select Project --</option>
-            {projectOptions.map(option => (
-              <option key={option} value={option}>{option}</option>
-            ))}
+            <option value="Project 1">Project 1</option>
           </select>
         </div>
 
-        <div style={styles.selectGroup}>
-          <label style={styles.label}>Release:</label>
-          <select value={release} onChange={handleReleaseChange} style={styles.select}>
-            <option value="">-- Select Release --</option>
-            {releaseOptions.map(option => (
-              <option key={option} value={option}>{option}</option>
-            ))}
-          </select>
-        </div>
-
-        <div style={styles.selectGroup}>
-          <label style={styles.label}>Functionality:</label>
-          <select value={functionality} onChange={handleFunctionalityChange} style={styles.select}>
-            <option value="">-- Select Functionality --</option>
-            {functionalityOptions.map(option => (
-              <option key={option} value={option}>{option}</option>
-            ))}
-          </select>
-        </div>
+        {areSelectionsComplete() && (
+          <div style={styles.selectGroup}>
+            <label style={styles.label}>Functionality:</label>
+            <select value={functionality} onChange={handleFunctionalityChange} style={styles.select}>
+              <option value="">-- Select Functionality --</option>
+              {functionalityOptions.map(option => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
-      <h3>Requirements Table</h3>
-      {loading ? (
-        <div style={styles.loadingContainer}>
-          <div style={styles.loadingText}>Loading requirements...</div>
-          <div style={styles.loadingSpinner}></div>
-        </div>
-      ) : error ? (
-        <div style={styles.errorContainer}>
-          <div style={styles.errorMessage}>
-            <h3>Error Loading Requirements</h3>
-            <p>{error}</p>
-            <div style={styles.errorDetails}>
-              <p>Please check:</p>
-              <ul>
-                <li>Backend server is running</li>
-                <li>Database connection is active</li>
-                <li>Requirements table exists and has data</li>
-              </ul>
+      {areSelectionsComplete() && (
+        <>
+          <h3>Requirements Table</h3>
+          {loading ? (
+            <div style={styles.loadingContainer}>
+              <div style={styles.loadingText}>Loading requirements...</div>
+              <div style={styles.loadingSpinner}></div>
             </div>
-            <button 
-              style={styles.retryButton}
-              onClick={() => window.location.reload()}
-            >
-              Retry
-            </button>
-          </div>
-        </div>
-      ) : filteredRequirements.length > 0 ? (
-        <table style={styles.table}>
-          <thead>
-            <tr>
-              <th style={styles.th}>ID</th>
-              <th style={styles.th}>User Story</th>
-              <th style={styles.th}>Description</th>
-              <th style={styles.th}>Functionality</th>
-              <th style={styles.th}>Release</th>
-              <th style={styles.th}>Priority</th>
-              <th style={styles.th}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredRequirements.map((row) => (
-              <tr key={row.id}>
-                <td style={styles.td}>{row.id}</td>
-                <td style={styles.td}>{row.title}</td>
-                <td style={styles.td}>{row.description}</td>
-                <td style={styles.td}>{row.functionality}</td>
-                <td style={styles.td}>{row.release}</td>
-                <td style={styles.td}>{row.priority}</td>
-                <td style={styles.td}>
-                  <button 
-                    style={styles.actionButton} 
-                    onClick={() => window.location.href = `/item/${row.id}`}
-                  >
-                    View
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      ) : (
-        <p>No requirements found.</p>
+          ) : error ? (
+            <div style={styles.errorContainer}>
+              <div style={styles.errorMessage}>
+                <h3>Error Loading Requirements</h3>
+                <p>{error}</p>
+                <div style={styles.errorDetails}>
+                  <p>Please check:</p>
+                  <ul>
+                    <li>Backend server is running</li>
+                    <li>Database connection is active</li>
+                    <li>Requirements table exists and has data</li>
+                  </ul>
+                </div>
+                <button 
+                  style={styles.retryButton}
+                  onClick={() => window.location.reload()}
+                >
+                  Retry
+                </button>
+              </div>
+            </div>
+          ) : filteredRequirements.length > 0 ? (
+            <table style={styles.table}>
+              <thead>
+                <tr>
+                  <th style={styles.th}>ID</th>
+                  <th style={styles.th}>User Story</th>
+                  <th style={styles.th}>Description</th>
+                  <th style={styles.th}>Functionality</th>
+                  {/* <th style={styles.th}>Release</th> */}
+                  <th style={styles.th}>Priority</th>
+                  <th style={styles.th}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredRequirements.map((row) => (
+                  <tr key={row.id}>
+                    <td style={styles.td}>{row.id}</td>
+                    <td style={styles.td}>{row.title}</td>
+                    <td style={styles.td}>{row.description}</td>
+                    <td style={styles.td}>{row.functionality}</td>
+                    {/* <td style={styles.td}>{row.release}</td> */}
+                    <td style={styles.td}>{row.priority}</td>
+                    <td style={styles.td}>
+                      <button 
+                        style={styles.actionButton} 
+                        onClick={() => window.location.href = `/item/${row.id}`}
+                      >
+                        View
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <p>No requirements found.</p>
+          )}
+        </>
       )}
     </div>
   );

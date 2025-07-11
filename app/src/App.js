@@ -5,6 +5,14 @@ import ItemDetailsPage from './pages/ItemDetailsPage';
 import RelatedStoriesPage from './pages/RelatedStoriesPage';
 import './App.css';
 
+const styles = {
+  disabledSelect: {
+    backgroundColor: '#f5f5f5',
+    cursor: 'not-allowed',
+    opacity: 0.7
+  }
+};
+
 function App() {
   return (
     <Router>
