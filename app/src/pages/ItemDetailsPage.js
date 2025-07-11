@@ -120,7 +120,7 @@ function ItemDetailsPage() {
             {item.priority}
           </span>
         </p>
-        <div style={{ marginTop: '2rem' }}>
+        {/* <div style={{ marginTop: '2rem' }}>
           <button
             style={{
               marginRight: '1rem',
@@ -146,7 +146,7 @@ function ItemDetailsPage() {
           >
             Refine
           </button>
-        </div>
+        </div> */}
 
       {/*TC Generation*/}
       <div style={{ marginTop: '2rem' }}>
@@ -201,7 +201,7 @@ function ItemDetailsPage() {
               <th style={styles.th}>Item</th>
               <th style={styles.th}>Description</th>
               <th style={styles.th}>Relationship %</th>
-              <th style={styles.th}>Action</th>
+              {/* <th style={styles.th}>Action</th> */}
             </tr>
           </thead>
           <tbody>
@@ -211,7 +211,7 @@ function ItemDetailsPage() {
                 <td style={styles.td}>{story.name}</td>
                 <td style={styles.td}>{story.description}</td>
                 <td style={styles.td}>{story.relationship}%</td>
-                <td style={styles.td}>
+                {/* <td style={styles.td}>
                   <button
                     style={{
                       ...styles.button,
@@ -220,7 +220,7 @@ function ItemDetailsPage() {
                   >
                     View
                   </button>
-                </td>
+                </td> */}
               </tr>
             ))}
           </tbody>
