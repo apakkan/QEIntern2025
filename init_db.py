@@ -88,7 +88,7 @@ def create_tables(conn):
                                 else:
                                     functionality = functionality_type
                                 print(f"Set functionality to: {functionality}")
-                            elif field_name == 'Sprint' or field_name == 'Release':  # Check both field names
+                            elif field_name == 'Sprint' or field_name == 'Release':
                                 print(f"\nFound {field_name} field:")
                                 print(f"Raw data: {prop}")
                                 

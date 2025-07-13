@@ -333,12 +333,19 @@ if __name__ == "__main__":
         requirements = get_qtest_requirements()
         if requirements:
             for req in requirements:
+                sprint = None
+                # Try to extract sprint from properties
+                for prop in req.get("properties", []):
+                    if prop.get("field_name", "").lower() == "sprint":
+                        sprint = prop.get("field_value_name") or prop.get("field_value") or prop.get("value")
+                        break
                 insert_requirement(
                     conn,
                     req_id=req["id"],
                     title=req.get("name", "Untitled"),
                     description=req.get("description", ""),
-                    status=req.get("status", "New")
+                    status=req.get("status", "New"),
+                    sprint=sprint
                 )
             with open("requirements.json", "w") as f:
                 json.dump(requirements, f, indent=2)

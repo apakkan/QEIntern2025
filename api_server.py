@@ -4,6 +4,7 @@ import psycopg2
 import os
 import logging
 from database.embedding_utils import get_embedding
+from init_db import create_tables
 
 app = FastAPI()
 
@@ -75,45 +76,50 @@ async def root():
             detail=f"Database connection failed: {str(e)}"
         )
 
+# Update the /requirements/ endpoint query
 @app.get("/requirements/")
 async def get_requirements():
     try:
         conn = get_pg_conn()
         cur = conn.cursor()
         
-        logger.info("Fetching requirements...")
         cur.execute("""
             SELECT 
-                id,
-                user_story,
-                description,
-                functionality,
-                release,
-                priority,
-                model,
-                project
-            FROM requirements;
+                r.id,
+                r.user_story,
+                r.description,
+                r.functionality,
+                COALESCE(r.release, 'Not Set') as sprint,
+                CASE
+                    WHEN r.priority = 'High' THEN '2'
+                    WHEN r.priority = 'Medium' THEN '5'
+                    WHEN r.priority = 'Low' THEN '8'
+                    ELSE 'Not Assessed'
+                END as risk_score
+            FROM requirements r
         """)
         
         rows = cur.fetchall()
-        logger.info(f"Found {len(rows)} requirements")
-        
         requirements = []
         for row in rows:
+            risk_score = row[5]
+            if risk_score.isdigit():
+                risk_score = int(risk_score)
+                
             requirement = {
                 "id": row[0],
                 "user_story": row[1] or "",
                 "description": row[2] or "",
                 "functionality": row[3] or "",
-                "release": row[4] or "",
-                "priority": row[5] or "",
-                "model": row[6] or "",
-                "project": row[7] or ""
+                "sprint": row[4], 
+                "risk_score": risk_score,
+                "model": "OpenAI",
+                "project": "Project 1"
             }
             requirements.append(requirement)
         
-        return requirements  # Ensure this returns a list
-        
+        return requirements
+
     except Exception as e:
         logger.error(f"Error fetching requirements: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -163,25 +169,32 @@ async def get_requirement(requirement_id: int):
         conn = get_pg_conn()
         cur = conn.cursor()
         
-        logger.info(f"Fetching requirement with ID: {requirement_id}")
         cur.execute("""
             SELECT 
-                id,
-                user_story,
-                description,
-                functionality,
-                release,
-                priority,
-                model,
-                project
-            FROM requirements
+                r.id,
+                r.user_story,
+                r.description,
+                r.functionality,
+                r.release,
+                CASE
+                    WHEN r.priority = 'High' THEN '2'
+                    WHEN r.priority = 'Medium' THEN '5'
+                    WHEN r.priority = 'Low' THEN '8'
+                    ELSE 'Not Assessed'
+                END as risk_score,
+                r.model,
+                r.project
+            FROM requirements r
             WHERE id = %s;
         """, (requirement_id,))
         
         row = cur.fetchone()
         if not row:
-            logger.error(f"Requirement not found with ID: {requirement_id}")
             raise HTTPException(status_code=404, detail="Requirement not found")
+            
+        risk_score = row[5]
+        if isinstance(risk_score, str) and risk_score.isdigit():
+            risk_score = int(risk_score)
             
         requirement = {
             "id": row[0],
@@ -189,14 +202,13 @@ async def get_requirement(requirement_id: int):
             "description": row[2] or "",
             "functionality": row[3] or "",
             "release": row[4] or "",
-            "priority": row[5] or "",
+            "risk_score": risk_score,
             "model": row[6] or "",
             "project": row[7] or ""
         }
         
-        logger.info(f"Found requirement: {requirement}")
         return requirement
-        
+
     except Exception as e:
         logger.error(f"Error fetching requirement: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -333,3 +345,14 @@ async def get_test_cases(requirement_id: int):
             cur.close()
         if 'conn' in locals():
             conn.close()
+
+# Initialize database tables when server starts
+@app.on_event("startup")
+async def startup_event():
+    try:
+        conn = get_pg_conn()
+        create_tables(conn)
+        conn.close()
+        logger.info("Database tables initialized")
+    except Exception as e:
+        logger.error(f"Failed to initialize database: {e}")

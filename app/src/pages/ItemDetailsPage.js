@@ -30,7 +30,7 @@ function ItemDetailsPage() {
           name: reqData.user_story,
           description: reqData.description || 'No Description',
           functionality: reqData.functionality || 'Not Specified',
-          priority: reqData.priority || 'Not Set',
+          risk_score: reqData.risk_score || 'Not Assessed', // Change from priority
           release: reqData.release || 'Not Set',
           project: reqData.project || 'Core System'
         });
@@ -85,6 +85,14 @@ function ItemDetailsPage() {
     }
   };
 
+  const getRiskColor = (riskScore) => {
+    const score = parseInt(riskScore);
+    if (isNaN(score)) return '#808080'; // gray for "Not Assessed"
+    if (score <= 3) return '#ff4d4f';   // red for high risk (1-3)
+    if (score <= 7) return '#faad14';   // yellow for medium risk (4-7)
+    return '#52c41a';                   // green for low risk (8-10)
+  };
+
   if (loading) return <div style={{ padding: '2rem' }}>Loading...</div>;
   if (error) return <div style={{ padding: '2rem' }}>Error: {error}</div>;
   if (!item) return <div style={{ padding: '2rem' }}>Item not found.</div>;
@@ -110,14 +118,15 @@ function ItemDetailsPage() {
         <p><strong>Project:</strong> {item.project}</p>
         <p><strong>Release:</strong> {item.release}</p>
         <p>
-          <strong>Priority:</strong>{' '}
+          <strong>Risk Score:</strong>{' '}
           <span style={{
-            backgroundColor: getPriorityColor(item.priority),
-            color: 'white',
+            backgroundColor: getRiskColor(item.risk_score),
+            color: item.risk_score === 'Not Assessed' ? 'black' : 'white',
             padding: '0.25rem 0.5rem',
-            borderRadius: '4px'
+            borderRadius: '4px',
+            fontWeight: 'bold'
           }}>
-            {item.priority}
+            {item.risk_score}
           </span>
         </p>
         {/* <div style={{ marginTop: '2rem' }}>

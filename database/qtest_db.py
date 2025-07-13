@@ -8,7 +8,6 @@ import json
 from database.embedding_utils import get_embedding
 from dotenv import load_dotenv
 
-
 load_dotenv()
 
 # ==== Global Constants ====
@@ -113,7 +112,7 @@ def create_tables(conn):
             user_story TEXT,
             functionality TEXT,
             description TEXT,
-            release TEXT,
+            sprint TEXT,
             related_story TEXT,
             business_priority TEXT,
             embedding vector({OPENAI_EMBEDDING_DIM})
@@ -132,15 +131,16 @@ def insert_requirement(conn, req_id, title, description, status):
     cursor = conn.cursor()
     cursor.execute(
         """
-        INSERT INTO requirements (id, title, description, status, embedding)
+        INSERT INTO requirements (id, title, description, status, sprint, embedding)
         VALUES (%s, %s, %s, %s, %s)
         ON CONFLICT (id) DO UPDATE SET
             title = EXCLUDED.title,
             description = EXCLUDED.description,
             status = EXCLUDED.status,
+            sprint = EXCLUDED.sprint,
             embedding = EXCLUDED.embedding
         """,
-        (req_id, title, description, status, embedding)
+        (req_id, title, description, status, sprint, embedding)
     )
     conn.commit()
     cursor.close()

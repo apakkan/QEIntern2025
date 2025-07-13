@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
 
 function DetailsPage() {
-  const [model, setModel] = useState('');
-  const [project, setProject] = useState('');
-  const [release, setRelease] = useState('');
+  const [model, setModel] = useState(''); // Remove default value
+  const [project, setProject] = useState(''); // Remove default value
   const [functionality, setFunctionality] = useState('');
   const [requirements, setRequirements] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -51,72 +50,46 @@ function DetailsPage() {
       setFunctionalityOptions(uniqueFunctionalities);
     };
 
-    const fetchRequirements = async () => {
-      try {
-        console.log('Fetching requirements...');
-        const response = await fetch('http://localhost:8000/requirements/');
-        const data = await response.json();
-        
-        console.log('Raw data from API:', data); // Debug log
-        
-        // Add type checking for data
-        if (!Array.isArray(data)) {
-          console.error('API returned non-array data:', data);
-          setRequirements([]);
-          setLoading(false);
-          return;
-        }
-        
-        // Update the fetchRequirements function's transformedData section
-        const transformedData = data.map(req => ({
-          id: req.id,
-          title: req.user_story,
-          description: req.description || 'No Description',
-          functionality: req.functionality || 'Not Specified',
-          release: req.release || '',
-          priority: req.priority || 'Not Set',
-          model: req.model || '',
-          project: req.project || 'Project 1'
-        }));
-        
-        console.log('Transformed data:', transformedData);
-        setRequirements(transformedData);
+ const fetchRequirements = async () => {
+  try {
+    console.log('Fetching requirements...');
+    const response = await fetch('http://localhost:8000/requirements/');
+    const data = await response.json();
 
-        // Update dropdown options with error handling
-        const uniqueReleases = Array.from(new Set(
-          transformedData
-            .map(req => req.release)
-            .filter(release => release && release.trim() !== '')
-        )).sort();
+    console.log('Raw API response:', data); 
 
-        const uniqueFunctionalities = Array.from(new Set(
-          transformedData
-            .map(req => req.functionality)
-            .filter(func => func && func !== 'Not Specified')
-        )).sort();
+    if (!Array.isArray(data)) {
+      console.error('API returned non-array data:', data);
+      setRequirements([]);
+      setLoading(false);
+      return;
+    }
 
-        // const uniqueProjects = Array.from(new Set(
-        //   transformedData
-        //     .map(req => req.project)
-        //     .filter(proj => proj && proj.trim() !== '')
-        // )).sort();
+    const transformedData = data.map(req => ({
+      id: req.id,
+      title: req.user_story || 'Untitled',
+      description: req.description || 'No Description',
+      functionality: req.functionality || 'Not Specified',
+      sprint: req.sprint || 'Not Set',
+      risk_score: req.risk_score || 'Not Assessed',
+      model: 'OpenAI',
+      project: 'Project 1'
+    }));
 
-        console.log('Filtered options:', {
-          releases: uniqueReleases,
-          functionalities: uniqueFunctionalities,
-        //   projects: uniqueProjects
-         });
+    console.log('Transformed data:', transformedData); // <-- ADD THIS
 
-        setReleaseOptions(uniqueReleases);
-        setFunctionalityOptions(uniqueFunctionalities);
-        // setProjectOptions(uniqueProjects);
-        setLoading(false);
-      } catch (error) {
-        console.error('Error fetching requirements:', error);
-        setError(error.message);
-        setLoading(false);
-      }
-    };
+    setRequirements(transformedData);
+    const uniqueFunctionalities = [...new Set(transformedData
+      .map(req => req.functionality)
+      .filter(f => f && f !== 'Not Specified'))];
+    setFunctionalityOptions(uniqueFunctionalities);
+    setLoading(false);
+  } catch (error) {
+    console.error('Error fetching requirements:', error);
+    setError(error.message);
+    setLoading(false);
+  }
+};
 
     const initializeData = async () => {
       const dbReady = await checkDatabaseStatus();
@@ -130,19 +103,33 @@ function DetailsPage() {
   
 
   const areSelectionsComplete = () => {
-    return model === 'OpenAI' && project === 'Project 1';
-  };
+  const isComplete = model === 'OpenAI' && project === 'Project 1';
+  console.log('Selection Check:', { 
+    model, 
+    project, 
+    isComplete,
+    requirementsCount: requirements.length,
+    loading,
+    error
+  });
+  return isComplete;
+};
 
   const filteredRequirements = requirements.filter(req => {
-    if (!areSelectionsComplete()) {
-      return false;
-    }
-    const functionalityMatch = !functionality || 
-      (req.functionality && req.functionality.toLowerCase() === functionality.toLowerCase());
-
-    return functionalityMatch;
+  if (!areSelectionsComplete()) {
+    return false;
+  }
+  const functionalityMatch = !functionality || 
+    (req.functionality && req.functionality.toLowerCase() === functionality.toLowerCase());
+  console.log('Filtering requirement:', {
+    id: req.id,
+    functionality: req.functionality,
+    matchesFilter: functionalityMatch
   });
+  return functionalityMatch;
+});
 
+console.log('Filtered requirements:', filteredRequirements); // <-- ADD THIS
   if (loading) {
     console.log('Loading requirements...');
     return <div>Loading...</div>;
@@ -152,17 +139,26 @@ function DetailsPage() {
     return <div>Error: {error}</div>;
   }
 
-  // Event handlers
+  // Add this helper function near the top of the DetailsPage component
+  const getRiskColor = (riskScore) => {
+    const score = parseInt(riskScore);
+    if (isNaN(score)) return '#808080'; // gray for "Not Assessed"
+    if (score <= 3) return '#ff4d4f';   // red for high risk (1-3)
+    if (score <= 7) return '#faad14';   // yellow for medium risk (4-7)
+    return '#52c41a';                   // green for low risk (8-10)
+  };
+
   const handleModelChange = (e) => {
-    console.log('Model selected:', e.target.value);
-    setModel(e.target.value);
+    const value = e.target.value;
+    console.log('Setting model to:', value);
+    setModel(value);
     setFunctionality('');
   };
 
   const handleProjectChange = (e) => {
-    console.log('Project selected:', e.target.value);
-    setProject(e.target.value);
-    // Reset functionality when project changes
+    const value = e.target.value;
+    console.log('Setting project to:', value);
+    setProject(value);
     setFunctionality('');
   };
 
@@ -180,6 +176,16 @@ function DetailsPage() {
 
   return (
     <div style={styles.container}>
+      {console.log('Render State:', {
+      model,
+      project,
+      functionality,
+      requirementsCount: requirements.length,
+      filteredCount: filteredRequirements.length,
+      loading,
+      error,
+      selectionsComplete: areSelectionsComplete()
+    })}
       <div style={styles.filterPanel}>
         <div style={styles.selectGroup}>
           <label style={styles.label}>Model:</label>
@@ -213,7 +219,7 @@ function DetailsPage() {
           </div>
         )}
       </div>
-
+      
       {areSelectionsComplete() && (
         <>
           <h3>Requirements Table</h3>
@@ -251,8 +257,8 @@ function DetailsPage() {
                   <th style={styles.th}>User Story</th>
                   <th style={styles.th}>Description</th>
                   <th style={styles.th}>Functionality</th>
-                  {/* <th style={styles.th}>Release</th> */}
-                  <th style={styles.th}>Priority</th>
+                  <th style={styles.th}>Sprint</th>  {/* <-- changed from Release */}
+                  <th style={styles.th}>Risk Score</th>
                   <th style={styles.th}>Actions</th>
                 </tr>
               </thead>
@@ -263,8 +269,15 @@ function DetailsPage() {
                     <td style={styles.td}>{row.title}</td>
                     <td style={styles.td}>{row.description}</td>
                     <td style={styles.td}>{row.functionality}</td>
-                    {/* <td style={styles.td}>{row.release}</td> */}
-                    <td style={styles.td}>{row.priority}</td>
+                    <td style={styles.td}>{row.sprint}</td> {/* <-- changed from row.release */}
+                    <td style={{
+                      ...styles.td,
+                      backgroundColor: getRiskColor(row.risk_score),
+                      color: row.risk_score === 'Not Assessed' ? 'black' : 'white',
+                      fontWeight: 'bold'
+                    }}>
+                      {row.risk_score}
+                    </td>
                     <td style={styles.td}>
                       <button 
                         style={styles.actionButton} 
