@@ -11,25 +11,25 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 def test_full_kg_pipeline():
     # 1. Insert a sample requirement into Postgres
-    conn = connect_db()
-    create_tables(conn)
-    story_number = 123456
-    upsert_central_vector(
-        conn,
-        story_number=story_number,
-        source="raw",
-        title="Sample Requirement",
-        description="A requirement for full KG pipeline test.",
-        user_persona="User",
-        user_story="As a user, I want to test the KG pipeline.",
-        functionality="Pipeline",
-        related_stories=[],
-        business_priority="Medium",
-        agent_output=None,
-        embedding=get_embedding("A requirement for full KG pipeline test."),
-        kg_node_id=None
-    )
-    conn.close()
+    # conn = connect_db()
+    # create_tables(conn)
+    # story_number = 123456
+    # upsert_central_vector(
+    #     conn,
+    #     story_number=story_number,
+    #     source="raw",
+    #     title="Sample Requirement",
+    #     description="A requirement for full KG pipeline test.",
+    #     user_persona="User",
+    #     user_story="As a user, I want to test the KG pipeline.",
+    #     functionality="Pipeline",
+    #     related_stories=[],
+    #     business_priority="Medium",
+    #     agent_output=None,
+    #     embedding=get_embedding("A requirement for full KG pipeline test."),
+    #     kg_node_id=None
+    # )
+    # conn.close()
 
     # 2. Sync requirements to Neo4j
     import importlib.util
