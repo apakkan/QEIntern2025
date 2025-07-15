@@ -13,26 +13,28 @@ def connect_db():
         port=os.environ.get("POSTGRES_PORT", "5432")
     )
 
-def print_requirements():
+def print_central_vectors():
     conn = connect_db()
     cur = conn.cursor()
     cur.execute("""
-        SELECT id, title, user_story, functionality, description, status, priority, release
-        FROM requirements
+        SELECT id, story_number, source, title, description, user_persona, user_story, functionality, business_priority
+        FROM central_vectors
     """)
     rows = cur.fetchall()
     for row in rows:
-        print(f"ID: {row[0]}")
-        print(f"Title: {row[1]}")
-        print(f"User Story: {row[2]}")
-        print(f"Functionality: {row[3]}")
-        print(f"Description: {row[4]}")
-        print(f"Status: {row[5]}")
-        print(f"Priority: {row[6]}")
-        print(f"Release: {row[7]}")
-        print("="*40)
+        print(dict(
+            id=row[0],
+            story_number=row[1],
+            source=row[2],
+            title=row[3],
+            description=row[4],
+            user_persona=row[5],
+            user_story=row[6],
+            functionality=row[7],
+            business_priority=row[8]
+        ))
     cur.close()
     conn.close()
 
 if __name__ == "__main__":
-    print_requirements()
+    print_central_vectors()

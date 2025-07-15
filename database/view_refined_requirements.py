@@ -13,26 +13,24 @@ def connect_db():
         port=os.environ.get("POSTGRES_PORT", "5432")
     )
 
-def print_requirements():
+def print_refined_requirements():
     conn = connect_db()
     cur = conn.cursor()
     cur.execute("""
-        SELECT id, title, user_story, functionality, description, status, priority, release
-        FROM requirements
+        SELECT requirement_id, user_persona, user_story, functionality, description, release, related_story, business_priority
+        FROM refinedrequirements
     """)
     rows = cur.fetchall()
     for row in rows:
-        print(f"ID: {row[0]}")
-        print(f"Title: {row[1]}")
-        print(f"User Story: {row[2]}")
-        print(f"Functionality: {row[3]}")
-        print(f"Description: {row[4]}")
-        print(f"Status: {row[5]}")
-        print(f"Priority: {row[6]}")
-        print(f"Release: {row[7]}")
-        print("="*40)
+        print(dict(
+            requirement_id=row[0],
+            user_persona=row[1],
+            user_story=row[2],
+            functionality=row[3],
+            description=row[4],
+            release=row[5],
+            related_story=row[6],
+            business_priority=row[7]
+        ))
     cur.close()
     conn.close()
-
-if __name__ == "__main__":
-    print_requirements()

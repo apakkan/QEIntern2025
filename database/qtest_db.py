@@ -131,6 +131,8 @@ def insert_requirement(
     """
     embedding = get_embedding(f"{title} {description}")
     cursor = conn.cursor()
+    # Always set user_story to title
+    user_story = title
     cursor.execute(
         """
         INSERT INTO requirements (
@@ -342,6 +344,22 @@ def get_property_value(properties, field_name):
             return prop.get("field_value_name") or prop.get("field_value")
     return None
 
+def sync_functionality_from_central_vectors(conn):
+    """
+    Update requirements.functionality from central_vectors.functionality if available.
+    """
+    cursor = conn.cursor()
+    cursor.execute("""
+        UPDATE requirements r
+        SET functionality = cv.functionality
+        FROM central_vectors cv
+        WHERE r.id = cv.story_number
+          AND cv.source = 'requirement_agent'
+          AND cv.functionality IS NOT NULL;
+    """)
+    conn.commit()
+    cursor.close()
+
 # ==== Main Execution Block ====
 if __name__ == "__main__":
     # Connect to the database
@@ -388,6 +406,9 @@ if __name__ == "__main__":
         defects = get_qtest_defects()
         if defects:
             insert_defects(conn, defects)
+
+        # Sync functionality from central_vectors to requirements
+        sync_functionality_from_central_vectors(conn)
 
         conn.close()
 
