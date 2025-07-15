@@ -70,7 +70,7 @@ function DetailsPage() {
       title: req.user_story || 'Untitled',
       description: req.description || 'No Description',
       functionality: req.functionality || 'Not Specified',
-      sprint: req.sprint || 'Not Set',
+      release: req.release || 'Not Set',
       risk_score: req.risk_score || 'Not Assessed',
       model: 'OpenAI',
       project: 'Project 1'
@@ -257,7 +257,7 @@ console.log('Filtered requirements:', filteredRequirements); // <-- ADD THIS
                   <th style={styles.th}>User Story</th>
                   <th style={styles.th}>Description</th>
                   <th style={styles.th}>Functionality</th>
-                  <th style={styles.th}>Sprint</th>  {/* <-- changed from Release */}
+                  <th style={styles.th}>Release</th>  {/* <-- changed from Release */}
                   <th style={styles.th}>Risk Score</th>
                   <th style={styles.th}>Actions</th>
                 </tr>
@@ -269,7 +269,7 @@ console.log('Filtered requirements:', filteredRequirements); // <-- ADD THIS
                     <td style={styles.td}>{row.title}</td>
                     <td style={styles.td}>{row.description}</td>
                     <td style={styles.td}>{row.functionality}</td>
-                    <td style={styles.td}>{row.sprint}</td> {/* <-- changed from row.release */}
+                    <td style={styles.td}>{row.release}</td> {/* <-- changed from row.release */}
                     <td style={{
                       ...styles.td,
                       backgroundColor: getRiskColor(row.risk_score),

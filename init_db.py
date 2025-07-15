@@ -2,6 +2,7 @@ import psycopg2
 import os
 from dotenv import load_dotenv
 import time
+import re
 
 load_dotenv()
 
@@ -32,6 +33,24 @@ def create_tables(conn):
             );
         ''')
         print("Table structure created/verified")
+        
+        # Drop the testcases table if it exists
+        cur.execute('DROP TABLE IF EXISTS testcases;')
+        
+        # Create the testcases table
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS testcases (
+                id SERIAL PRIMARY KEY,
+                requirement_id INTEGER REFERENCES requirements(id),
+                title TEXT NOT NULL,
+                description TEXT,
+                steps TEXT,
+                expected_result TEXT,
+                coverage INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        ''')
+        print("Testcases table structure created/verified")
         
         # Check if table is empty
         cur.execute('SELECT COUNT(*) FROM requirements')
@@ -69,7 +88,7 @@ def create_tables(conn):
                             print(f"Raw property data: {prop}")
                             
                             if field_name == 'Description':
-                                description = prop.get('field_value', '')
+                                description = strip_html(prop.get('field_value', ''))
                             elif field_name == 'Type':
                                 functionality_type = prop.get('field_value_name', '')
                                 # Map functionality based on user story content
@@ -96,23 +115,23 @@ def create_tables(conn):
                                 # 1. field_value_name (display name)
                                 # 2. field_value (actual value)
                                 # 3. value (direct value)
-                                sprint_value = None
+                                release_value = None
                                 
                                 if prop.get('field_value_name'):
-                                    sprint_value = prop.get('field_value_name')
-                                    print(f"Using field_value_name: {sprint_value}")
+                                    release_value = prop.get('field_value_name')
+                                    print(f"Using field_value_name: {release_value}")
                                 elif prop.get('field_value'):
-                                    sprint_value = prop.get('field_value')
-                                    print(f"Using field_value: {sprint_value}")
+                                    release_value = prop.get('field_value')
+                                    print(f"Using field_value: {release_value}")
                                 elif prop.get('value'):
-                                    sprint_value = prop.get('value')
-                                    print(f"Using value: {sprint_value}")
-                                
-                                if sprint_value and str(sprint_value).strip():
-                                    release = str(sprint_value).strip()
-                                    print(f"Set release/sprint to: {release}")
+                                    release_value = prop.get('value')
+                                    print(f"Using value: {release_value}")
+
+                                if release_value and str(release_value).strip():
+                                    release = str(release_value).strip()
+                                    print(f"Set release to: {release}")
                                 else:
-                                    print(f"No valid sprint/release value found in property: {prop}")
+                                    print(f"No valid release value found in property: {prop}")
                             elif field_name == 'Priority':
                                 priority = prop.get('field_value_name', '')
                             elif field_name == 'Project':  # Add this new section
@@ -149,8 +168,8 @@ def create_tables(conn):
                                 functionality,
                                 release,
                                 priority,
-                                '',  # model
-                                ''   # project
+                                'OpenAI', 
+                                project
                             ))
                             print(f"Inserted requirement ID: {req_id}")
                             print(f"Data: description={description}, functionality={functionality}, release={release}, priority={priority}")
@@ -161,6 +180,9 @@ def create_tables(conn):
                 
                 conn.commit()
                 print("Database changes committed")
+
+def strip_html(text):
+    return re.sub('<[^<]+?>', '', text) if text else text
 
 def main():
     print("Starting database initialization...")

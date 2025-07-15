@@ -1,8 +1,6 @@
-import sys
-import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 import time
 import psycopg2
+import os
 import requests
 import json
 from database.embedding_utils import get_embedding
@@ -28,7 +26,7 @@ def connect_db(retries=RETRY_COUNT, delay=RETRY_DELAY):
                 database=os.environ.get("POSTGRES_DB", "mydb"),
                 user=os.environ.get("POSTGRES_USER", "postgres"),
                 password=os.environ.get("POSTGRES_PASSWORD", "postgres"),
-                host=os.environ.get("POSTGRES_HOST", "qeintern2025_db"),  # Changed from maindb
+                host=os.environ.get("POSTGRES_HOST", "maindb"),
                 port=os.environ.get("POSTGRES_PORT", "5432")
             )
             return conn
@@ -72,7 +70,7 @@ def create_tables(conn):
             description TEXT,
             status TEXT,
             priority TEXT,
-            sprint TEXT,
+            release TEXT,           
             user_persona TEXT,
             user_story TEXT,
             functionality TEXT,              
@@ -112,7 +110,7 @@ def create_tables(conn):
             user_story TEXT,
             functionality TEXT,
             description TEXT,
-            sprint TEXT,
+            release TEXT,
             related_story TEXT,
             business_priority TEXT,
             embedding vector({OPENAI_EMBEDDING_DIM})
@@ -123,24 +121,38 @@ def create_tables(conn):
     print("Tables created successfully")
 
 # ==== Insert Functions ====
-def insert_requirement(conn, req_id, title, description, status):
+def insert_requirement(
+    conn, req_id, title, description, status,
+    priority=None, release=None, user_persona=None,
+    user_story=None, functionality=None
+):
     """
-    Insert or update a requirement with embedding.
+    Insert or update a requirement with embedding and all fields.
     """
     embedding = get_embedding(f"{title} {description}")
     cursor = conn.cursor()
     cursor.execute(
         """
-        INSERT INTO requirements (id, title, description, status, sprint, embedding)
-        VALUES (%s, %s, %s, %s, %s)
+        INSERT INTO requirements (
+            id, title, description, status, priority, release,
+            user_persona, user_story, functionality, embedding
+        )
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT (id) DO UPDATE SET
             title = EXCLUDED.title,
             description = EXCLUDED.description,
             status = EXCLUDED.status,
-            sprint = EXCLUDED.sprint,
+            priority = EXCLUDED.priority,
+            release = EXCLUDED.release,
+            user_persona = EXCLUDED.user_persona,
+            user_story = EXCLUDED.user_story,
+            functionality = EXCLUDED.functionality,
             embedding = EXCLUDED.embedding
         """,
-        (req_id, title, description, status, sprint, embedding)
+        (
+            req_id, title, description, status, priority, release,
+            user_persona, user_story, functionality, embedding
+        )
     )
     conn.commit()
     cursor.close()
@@ -153,7 +165,7 @@ def insert_testcases(conn, testcases):
     data = [
         (
             tc.get("requirement_id"),
-            tc.get("title"),
+            tc.get("name", "Untitled Testcase"), 
             tc.get("steps"),
             tc.get("expected_result")
         )
@@ -321,6 +333,15 @@ def get_qtest_defects():
     """
     return fetch_qtest_entities("QTEST_DEFECTS_API_URL", "defects", sort_param="id")
 
+def get_property_value(properties, field_name):
+    if not properties:
+        return None
+    for prop in properties:
+        if prop.get("field_name") == field_name:
+            # Use field_value_name if present, else field_value
+            return prop.get("field_value_name") or prop.get("field_value")
+    return None
+
 # ==== Main Execution Block ====
 if __name__ == "__main__":
     # Connect to the database
@@ -329,19 +350,29 @@ if __name__ == "__main__":
         create_tables(conn)
 
         # Fetch and insert requirements
-        
         requirements = get_qtest_requirements()
         if requirements:
             for req in requirements:
+                properties = req.get("properties", [])
+                release = get_property_value(properties, "Release")
+                priority = get_property_value(properties, "Priority")
+                status = get_property_value(properties, "Status")
+                description = get_property_value(properties, "Description") or req.get("description", "")
+                functionality = get_property_value(properties, "Functionality")
+                # Add similar extraction for user_persona, user_story if needed
+
                 insert_requirement(
                     conn,
                     req_id=req["id"],
                     title=req.get("name", "Untitled"),
-                    description=req.get("description", ""),
-                    status=req.get("status", "New")
+                    description=description,
+                    status=status,
+                    priority=priority,
+                    release=release,  
+                    user_persona=req.get("user_persona"),
+                    user_story=req.get("user_story"),
+                    functionality=functionality
                 )
-            with open("requirements.json", "w") as f:
-                json.dump(requirements, f, indent=2)
 
         # Fetch and insert test cases
         testcases = get_qtest_testcases()
@@ -359,4 +390,3 @@ if __name__ == "__main__":
             insert_defects(conn, defects)
 
         conn.close()
-

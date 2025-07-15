@@ -5,6 +5,7 @@ import os
 import logging
 from database.embedding_utils import get_embedding
 from init_db import create_tables
+from gpt_agent import TestAgent  # Add this import at the top
 
 app = FastAPI()
 
@@ -91,9 +92,9 @@ async def get_requirements():
                 r.functionality,
                 COALESCE(r.release, 'Not Set') as sprint,
                 CASE
-                    WHEN r.priority = 'High' THEN '2'
+                    WHEN r.priority = 'High' THEN '10'
                     WHEN r.priority = 'Medium' THEN '5'
-                    WHEN r.priority = 'Low' THEN '8'
+                    WHEN r.priority = 'Low' THEN '1'
                     ELSE 'Not Assessed'
                 END as risk_score
             FROM requirements r
@@ -111,7 +112,7 @@ async def get_requirements():
                 "user_story": row[1] or "",
                 "description": row[2] or "",
                 "functionality": row[3] or "",
-                "sprint": row[4], 
+                "release": row[4], 
                 "risk_score": risk_score,
                 "model": "OpenAI",
                 "project": "Project 1"
@@ -177,9 +178,9 @@ async def get_requirement(requirement_id: int):
                 r.functionality,
                 r.release,
                 CASE
-                    WHEN r.priority = 'High' THEN '2'
+                    WHEN r.priority = 'High' THEN '10'
                     WHEN r.priority = 'Medium' THEN '5'
-                    WHEN r.priority = 'Low' THEN '8'
+                    WHEN r.priority = 'Low' THEN '1'
                     ELSE 'Not Assessed'
                 END as risk_score,
                 r.model,
@@ -300,45 +301,28 @@ async def get_test_cases(requirement_id: int):
     try:
         conn = get_pg_conn()
         cur = conn.cursor()
-        
-        # First verify the requirement exists
         cur.execute("""
-            SELECT id FROM requirements WHERE id = %s
+            SELECT id, user_story, description, functionality
+            FROM requirements
+            WHERE id = %s
         """, (requirement_id,))
-        
-        if not cur.fetchone():
+        row = cur.fetchone()
+        if not row:
             logger.error(f"Requirement {requirement_id} not found")
             raise HTTPException(status_code=404, detail="Requirement not found")
-        
-        logger.info(f"Fetching test cases for requirement {requirement_id}")
-        
-        # For now, return sample test cases
-        test_cases = [
-            {
-                "id": f"TC_{requirement_id}_1",
-                "title": "Verify Basic Functionality",
-                "description": "Test basic user interaction flow",
-                "coverage": 80
-            },
-            {
-                "id": f"TC_{requirement_id}_2",
-                "title": "Validate Input Fields",
-                "description": "Verify all input validations",
-                "coverage": 90
-            },
-            {
-                "id": f"TC_{requirement_id}_3",
-                "title": "Error Handling",
-                "description": "Test error scenarios and edge cases",
-                "coverage": 75
-            }
-        ]
-        
-        logger.info(f"Returning {len(test_cases)} test cases")
+        raw_requirement = [{
+            "story_number": row[0],
+            "user_story": row[1] or "",
+            "description": row[2] or "",
+            "functionality": row[3] or ""
+        }]
+        logger.info(f"Calling TestAgent for requirement: {raw_requirement}")
+        test_agent = TestAgent()
+        test_cases = test_agent.run(raw_requirements=raw_requirement)
+        logger.info(f"Returning {len(test_cases)} test cases from TestAgent")
         return test_cases
-        
     except Exception as e:
-        logger.error(f"Error in get_test_cases: {str(e)}")
+        logger.error(f"Error in get_test_cases: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         if 'cur' in locals():

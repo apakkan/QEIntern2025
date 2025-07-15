@@ -9,6 +9,7 @@ function ItemDetailsPage() {
   const [showPopup, setShowPopup] = useState(false);
   const [relatedStories, setRelatedStories] = useState([]); // Initialize empty array
   const [testCases, setTestCases] = useState([]); // Initialize empty array
+  const [testCaseLoading, setTestCaseLoading] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -93,20 +94,43 @@ function ItemDetailsPage() {
     return '#52c41a';                   // green for low risk (8-10)
   };
 
+  const handleGenerateTestCases = async () => {
+    setTestCaseLoading(true);
+    try {
+      const response = await fetch(`http://localhost:8000/requirements/${item.id}/test-cases`);
+      if (!response.ok) throw new Error('Failed to generate test cases');
+      const data = await response.json();
+      setTestCases(data);
+      setShowPopup(false); // Hide popup after generation
+    } catch (error) {
+      setError(error.message);
+    }
+    setTestCaseLoading(false);
+  };
+
   if (loading) return <div style={{ padding: '2rem' }}>Loading...</div>;
+  if (testCaseLoading) return <div style={{ padding: '2rem' }}>Generating test cases...</div>;
   if (error) return <div style={{ padding: '2rem' }}>Error: {error}</div>;
   if (!item) return <div style={{ padding: '2rem' }}>Item not found.</div>;
 
   const handleDownload = (type) => {
     setShowPopup(false);
     alert(`Download Test Cases as ${type}`);
-    //backend download logic here
+    
   };
   const handleInsertDB = () => {
     setShowPopup(false);
     alert('Insert Test Cases into Database');
-    //backend insert logic here
+
   };
+
+  // Map backend test case fields to frontend table fields
+  const mappedTestCases = testCases.map(tc => ({
+    id: tc.test_case_id || tc.id, // Use test_case_id as the Test Case ID
+    title: tc.title,
+    description: tc.test_description || tc.description,
+    coverage: tc.coverage // may be undefined
+  }));
 
   return (
     <div style={{ display: 'flex', alignItems: 'flex-start' }}>
@@ -248,19 +272,14 @@ function ItemDetailsPage() {
             </tr>
           </thead>
           <tbody>
-            {testCases.map((test) => (
+            {mappedTestCases.map((test) => (
               <tr key={test.id}>
                 <td style={styles.td}>{test.id}</td>
                 <td style={styles.td}>{test.title}</td>
                 <td style={styles.td}>{test.description}</td>
-                <td style={styles.td}>{test.coverage}%</td>
+                <td style={styles.td}>{test.coverage ?? ''}</td>
                 <td style={styles.td}>
-                  <button
-                    style={{
-                      ...styles.button,
-                      backgroundColor: '#0070AD', // Capgemini Blue for Run
-                    }}
-                  >
+                  <button style={{ ...styles.button, backgroundColor: '#0070AD' }}>
                     Run
                   </button>
                 </td>

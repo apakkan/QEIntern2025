@@ -1,23 +1,20 @@
-import sys
-import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 import time
 import psycopg2
+import os
 import requests
 import json
 from database.embedding_utils import get_embedding
 from dotenv import load_dotenv
-
-
+ 
 load_dotenv()
-
+ 
 # ==== Global Constants ====
 OPENAI_EMBEDDING_DIM = 1536  # Dimension of OpenAI embeddings
 DEFAULT_PAGE_SIZE = 20       # Default page size for API pagination
 MAX_PAGES = 100              # Max number of pages to fetch from API
 RETRY_COUNT = 5              # Number of DB connection retries
 RETRY_DELAY = 3              # Delay (seconds) between DB connection retries
-
+ 
 # ==== Database Connection ====
 def connect_db(retries=RETRY_COUNT, delay=RETRY_DELAY):
     """
@@ -40,7 +37,7 @@ def connect_db(retries=RETRY_COUNT, delay=RETRY_DELAY):
                 time.sleep(delay)
             else:
                 return None
-
+ 
 # ==== Table Creation ====
 def create_tables(conn):
     """
@@ -73,7 +70,7 @@ def create_tables(conn):
             description TEXT,
             status TEXT,
             priority TEXT,
-            sprint TEXT,
+            release TEXT,          
             user_persona TEXT,
             user_story TEXT,
             functionality TEXT,              
@@ -122,29 +119,44 @@ def create_tables(conn):
     conn.commit()
     cursor.close()
     print("Tables created successfully")
-
+ 
 # ==== Insert Functions ====
-def insert_requirement(conn, req_id, title, description, status):
+def insert_requirement(
+    conn, req_id, title, description, status,
+    priority=None, release=None, user_persona=None,
+    user_story=None, functionality=None
+):
     """
-    Insert or update a requirement with embedding.
+    Insert or update a requirement with embedding and all fields.
     """
     embedding = get_embedding(f"{title} {description}")
     cursor = conn.cursor()
     cursor.execute(
         """
-        INSERT INTO requirements (id, title, description, status, embedding)
-        VALUES (%s, %s, %s, %s, %s)
+        INSERT INTO requirements (
+            id, title, description, status, priority, release,
+            user_persona, user_story, functionality, embedding
+        )
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT (id) DO UPDATE SET
             title = EXCLUDED.title,
             description = EXCLUDED.description,
             status = EXCLUDED.status,
+            priority = EXCLUDED.priority,
+            release = EXCLUDED.release,
+            user_persona = EXCLUDED.user_persona,
+            user_story = EXCLUDED.user_story,
+            functionality = EXCLUDED.functionality,
             embedding = EXCLUDED.embedding
         """,
-        (req_id, title, description, status, embedding)
+        (
+            req_id, title, description, status, priority, release,
+            user_persona, user_story, functionality, embedding
+        )
     )
     conn.commit()
     cursor.close()
-
+ 
 def insert_testcases(conn, testcases):
     """
     Bulk insert test cases.
@@ -153,7 +165,7 @@ def insert_testcases(conn, testcases):
     data = [
         (
             tc.get("requirement_id"),
-            tc.get("title"),
+            tc.get("name", "Untitled Testcase"),
             tc.get("steps"),
             tc.get("expected_result")
         )
@@ -168,7 +180,7 @@ def insert_testcases(conn, testcases):
     )
     conn.commit()
     cursor.close()
-
+ 
 def insert_testruns(conn, testruns):
     """
     Bulk insert test runs.
@@ -191,7 +203,7 @@ def insert_testruns(conn, testruns):
     )
     conn.commit()
     cursor.close()
-
+ 
 def insert_defects(conn, defects):
     """
     Bulk insert defects.
@@ -214,7 +226,7 @@ def insert_defects(conn, defects):
     )
     conn.commit()
     cursor.close()
-
+ 
 def upsert_central_vector(
     conn, story_number, source, title, description, user_persona, user_story,
     functionality, related_stories, business_priority, agent_output, embedding, kg_node_id=None
@@ -249,7 +261,7 @@ def upsert_central_vector(
     )
     conn.commit()
     cursor.close()
-
+ 
 # ==== qTest API Fetching ====
 def fetch_qtest_entities(api_url_env, entity_name, sort_param="id"):
     """
@@ -262,7 +274,7 @@ def fetch_qtest_entities(api_url_env, entity_name, sort_param="id"):
     seen_ids = set()
     page = 1
     page_size = DEFAULT_PAGE_SIZE
-
+ 
     while page <= MAX_PAGES:
         params = {"page": page, "pageSize": page_size}
         # Only add sort if supported by the endpoint
@@ -278,7 +290,7 @@ def fetch_qtest_entities(api_url_env, entity_name, sort_param="id"):
         if not isinstance(data, list):
             print(f"qTest API: received non-list response for {entity_name}:", data)
             break
-
+ 
         new_count = 0
         for item in data:
             item_id = item.get("id")
@@ -286,84 +298,95 @@ def fetch_qtest_entities(api_url_env, entity_name, sort_param="id"):
                 all_data.append(item)
                 seen_ids.add(item_id)
                 new_count += 1
-
+ 
         print(f"Fetched page {page}, got {len(data)} {entity_name}, {new_count} new.")
         if len(data) < page_size or new_count == 0:
             break
         page += 1
     else:
         print(f"Warning: Reached maximum page limit for {entity_name}. Stopping fetch.")
-
+ 
     print(f"Total unique {entity_name} fetched: {len(all_data)}")
     return all_data
-
+ 
 def get_qtest_requirements():
     """
     Fetch requirements from qTest.
     """
     return fetch_qtest_entities("QTEST_REQUIREMENTS_API_URL", "requirements", sort_param=None)  # requirements may not support sort
-
+ 
 def get_qtest_testcases():
     """
     Fetch test cases from qTest.
     """
     return fetch_qtest_entities("QTEST_TESTCASES_API_URL", "testcases", sort_param="id")
-
+ 
 def get_qtest_testruns():
     """
     Fetch test runs from qTest.
     """
     return fetch_qtest_entities("QTEST_TESTRUNS_API_URL", "testruns", sort_param="id")
-
+ 
 def get_qtest_defects():
     """
     Fetch defects from qTest.
     """
     return fetch_qtest_entities("QTEST_DEFECTS_API_URL", "defects", sort_param="id")
-
+ 
+def get_property_value(properties, field_name):
+    if not properties:
+        return None
+    for prop in properties:
+        if prop.get("field_name") == field_name:
+            # Use field_value_name if present, else field_value
+            return prop.get("field_value_name") or prop.get("field_value")
+    return None
+ 
 # ==== Main Execution Block ====
 if __name__ == "__main__":
     # Connect to the database
     conn = connect_db()
     if conn:
         create_tables(conn)
-
+ 
         # Fetch and insert requirements
-        
         requirements = get_qtest_requirements()
         if requirements:
             for req in requirements:
-                sprint = None
-                # Try to extract sprint from properties
-                for prop in req.get("properties", []):
-                    if prop.get("field_name", "").lower() == "sprint":
-                        sprint = prop.get("field_value_name") or prop.get("field_value") or prop.get("value")
-                        break
+                properties = req.get("properties", [])
+                release = get_property_value(properties, "Release")
+                priority = get_property_value(properties, "Priority")
+                status = get_property_value(properties, "Status")
+                description = get_property_value(properties, "Description") or req.get("description", "")
+                functionality = get_property_value(properties, "Functionality")
+                # Add similar extraction for user_persona, user_story if needed
+ 
                 insert_requirement(
                     conn,
                     req_id=req["id"],
                     title=req.get("name", "Untitled"),
-                    description=req.get("description", ""),
-                    status=req.get("status", "New"),
-                    sprint=sprint
+                    description=description,
+                    status=status,
+                    priority=priority,
+                    release=release,  
+                    user_persona=req.get("user_persona"),
+                    user_story=req.get("user_story"),
+                    functionality=functionality
                 )
-            with open("requirements.json", "w") as f:
-                json.dump(requirements, f, indent=2)
-
+ 
         # Fetch and insert test cases
         testcases = get_qtest_testcases()
         if testcases:
             insert_testcases(conn, testcases)
-
+ 
         # Fetch and insert test runs
         testruns = get_qtest_testruns()
         if testruns:
             insert_testruns(conn, testruns)
-
+ 
         # Fetch and insert defects
         defects = get_qtest_defects()
         if defects:
             insert_defects(conn, defects)
-
+ 
         conn.close()
-
