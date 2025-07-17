@@ -143,9 +143,9 @@ console.log('Filtered requirements:', filteredRequirements); // <-- ADD THIS
   const getRiskColor = (riskScore) => {
     const score = parseInt(riskScore);
     if (isNaN(score)) return '#808080'; // gray for "Not Assessed"
-    if (score <= 3) return '#ff4d4f';   // red for high risk (1-3)
+    if (score <= 3) return '#52c41a';   // green for low risk (1-3)
     if (score <= 7) return '#faad14';   // yellow for medium risk (4-7)
-    return '#52c41a';                   // green for low risk (8-10)
+    return '#ff4d4f';                   // red for high risk (8-10)
   };
 
   const handleModelChange = (e) => {
