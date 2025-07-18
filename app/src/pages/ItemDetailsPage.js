@@ -33,7 +33,7 @@ function ItemDetailsPage() {
           functionality: reqData.functionality || 'Not Specified',
           risk_score: reqData.risk_score || 'Not Assessed', // Change from priority
           release: reqData.release || 'Not Set',
-          project: reqData.project || 'Core System'
+          project: reqData.project || 'Project 1'
         });
 
         // Fetch related stories
