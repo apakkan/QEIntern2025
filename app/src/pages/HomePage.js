@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 
 function DetailsPage() {
-  const [model, setModel] = useState(''); // Remove default value
-  const [project, setProject] = useState(''); // Remove default value
+  const [model, setModel] = useState('');
+  const [project, setProject] = useState('');
   const [functionality, setFunctionality] = useState('');
+  // Removed release filter
   const [requirements, setRequirements] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -12,8 +13,10 @@ function DetailsPage() {
   // Add new state variables for dropdown options
   const [modelOptions, setModelOptions] = useState(['OpenAI']);
   const [projectOptions, setProjectOptions] = useState([]);
-  const [releaseOptions, setReleaseOptions] = useState([]);
+  // Removed releaseOptions state
   const [functionalityOptions, setFunctionalityOptions] = useState([]);
+  const [sortRiskHighToLow, setSortRiskHighToLow] = useState(false); // Risk sort
+  const [sortSprintAsc, setSortSprintAsc] = useState(false); // Sprint sort
 
   useEffect(() => {
     const checkDatabaseStatus = async () => {
@@ -41,12 +44,12 @@ function DetailsPage() {
     const updateDropdownOptions = (data) => {
       const uniqueModels = [...new Set(data.map(req => req.model).filter(Boolean))];
       const uniqueProjects = [...new Set(data.map(req => req.project).filter(Boolean))];
-      const uniqueReleases = [...new Set(data.map(req => req.release).filter(Boolean))];
+      // Removed uniqueSprints extraction
       const uniqueFunctionalities = [...new Set(data.map(req => req.functionality).filter(Boolean))];
 
       setModelOptions(uniqueModels);
       setProjectOptions(uniqueProjects);
-      setReleaseOptions(uniqueReleases);
+      // Removed setReleaseOptions
       setFunctionalityOptions(uniqueFunctionalities);
     };
 
@@ -115,19 +118,33 @@ function DetailsPage() {
   return isComplete;
 };
 
-  const filteredRequirements = requirements.filter(req => {
-  if (!areSelectionsComplete()) {
-    return false;
-  }
-  const functionalityMatch = !functionality || 
-    (req.functionality && req.functionality.toLowerCase() === functionality.toLowerCase());
-  console.log('Filtering requirement:', {
-    id: req.id,
-    functionality: req.functionality,
-    matchesFilter: functionalityMatch
+  let filteredRequirements = requirements.filter(req => {
+    if (!areSelectionsComplete()) {
+      return false;
+    }
+    const functionalityMatch = !functionality || 
+      (req.functionality && req.functionality.toLowerCase() === functionality.toLowerCase());
+    return functionalityMatch;
   });
-  return functionalityMatch;
-});
+
+  // Sort by risk score high to low if enabled
+  if (sortRiskHighToLow) {
+    filteredRequirements = [...filteredRequirements].sort((a, b) => {
+      const scoreA = isNaN(parseInt(a.risk_score)) ? -1 : parseInt(a.risk_score);
+      const scoreB = isNaN(parseInt(b.risk_score)) ? -1 : parseInt(b.risk_score);
+      return scoreB - scoreA;
+    });
+  }
+
+  // Sort by sprint (release) ascending if enabled
+  if (sortSprintAsc) {
+    filteredRequirements = [...filteredRequirements].sort((a, b) => {
+      // Extract sprint number from release string
+      const sprintA = a.release && /^Sprint\s*(\d+)$/i.test(a.release) ? parseInt(a.release.match(/^Sprint\s*(\d+)$/i)[1]) : 9999;
+      const sprintB = b.release && /^Sprint\s*(\d+)$/i.test(b.release) ? parseInt(b.release.match(/^Sprint\s*(\d+)$/i)[1]) : 9999;
+      return sprintA - sprintB;
+    });
+  }
 
 console.log('Filtered requirements:', filteredRequirements); // <-- ADD THIS
   if (loading) {
@@ -162,11 +179,15 @@ console.log('Filtered requirements:', filteredRequirements); // <-- ADD THIS
     setFunctionality('');
   };
 
-  // const handleReleaseChange = (e) => {
-  //   const value = e.target.value;
-  //   console.log('Release selected:', value);
-  //   setRelease(value);
-  // };
+  // Removed handleReleaseChange
+
+  const handleSortRiskChange = (e) => {
+    setSortRiskHighToLow(e.target.checked);
+  };
+
+  const handleSortSprintChange = (e) => {
+    setSortSprintAsc(e.target.checked);
+  };
 
   const handleFunctionalityChange = (e) => {
     const value = e.target.value;
@@ -208,15 +229,36 @@ console.log('Filtered requirements:', filteredRequirements); // <-- ADD THIS
         </div>
 
         {areSelectionsComplete() && (
-          <div style={styles.selectGroup}>
-            <label style={styles.label}>Functionality:</label>
-            <select value={functionality} onChange={handleFunctionalityChange} style={styles.select}>
-              <option value="">-- Select Functionality --</option>
-              {functionalityOptions.map(option => (
-                <option key={option} value={option}>{option}</option>
-              ))}
-            </select>
-          </div>
+          <>
+            <div style={styles.selectGroup}>
+              <label style={styles.label}>Functionality:</label>
+              <select value={functionality} onChange={handleFunctionalityChange} style={styles.select}>
+                <option value="">-- Select Functionality --</option>
+                {functionalityOptions.map(option => (
+                  <option key={option} value={option}>{option}</option>
+                ))}
+              </select>
+            </div>
+            {/* Release filter removed */}
+            <div style={styles.selectGroup}>
+              <label style={styles.label}>Sort by Risk (High to Low):</label>
+              <input
+                type="checkbox"
+                checked={sortRiskHighToLow}
+                onChange={handleSortRiskChange}
+                style={{ marginLeft: '16px', transform: 'scale(1.2)' }}
+              />
+            </div>
+            <div style={styles.selectGroup}>
+              <label style={styles.label}>Sort by Sprint (Ascending):</label>
+              <input
+                type="checkbox"
+                checked={sortSprintAsc}
+                onChange={handleSortSprintChange}
+                style={{ marginLeft: '16px', transform: 'scale(1.2)' }}
+              />
+            </div>
+          </>
         )}
       </div>
       
