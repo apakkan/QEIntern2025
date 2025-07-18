@@ -117,7 +117,6 @@ def create_tables(conn):
         );
     """)
     conn.commit()
-    cursor.close()
     print("Tables created successfully")
 
 # ==== Insert Functions ====
@@ -227,40 +226,9 @@ def insert_defects(conn, defects):
     conn.commit()
     cursor.close()
 
-def upsert_central_vector(
-    conn, story_number, source, title, description, user_persona, user_story,
-    functionality, related_stories, business_priority, agent_output, embedding, kg_node_id=None
-):
-    cursor = conn.cursor()
-    # Convert agent_output to JSON string if it's a dict
-    if agent_output is not None and isinstance(agent_output, dict):
-        agent_output = json.dumps(agent_output)
-    cursor.execute(
-        """
-        INSERT INTO central_vectors (
-            story_number, source, title, description, user_persona, user_story,
-            functionality, related_stories, business_priority, agent_output, embedding, kg_node_id
-        )
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        ON CONFLICT (story_number, source) DO UPDATE SET
-            title = EXCLUDED.title,
-            description = EXCLUDED.description,
-            user_persona = EXCLUDED.user_persona,
-            user_story = EXCLUDED.user_story,
-            functionality = EXCLUDED.functionality,
-            related_stories = EXCLUDED.related_stories,
-            business_priority = EXCLUDED.business_priority,
-            agent_output = EXCLUDED.agent_output,
-            embedding = EXCLUDED.embedding,
-            kg_node_id = EXCLUDED.kg_node_id
-        """,
-        (
-            story_number, source, title, description, user_persona, user_story,
-            functionality, related_stories, business_priority, agent_output, embedding, kg_node_id
-        )
-    )
-    conn.commit()
-    cursor.close()
+def upsert_central_vector(*args, **kwargs):
+    # Disabled: central_vectors table removed
+    pass
 
 # ==== qTest API Fetching ====
 def fetch_qtest_entities(api_url_env, entity_name, sort_param="id"):

@@ -5,7 +5,7 @@ import os
 import logging
 from database.embedding_utils import get_embedding
 from init_db import create_tables
-from gpt_agent import TestAgent  # Add this import at the top
+from gpt_agent import TestAgent, RelationAgent  # Add RelationAgent import
 
 app = FastAPI()
 
@@ -319,7 +319,21 @@ async def get_test_cases(requirement_id: int):
         logger.info(f"Calling TestAgent for requirement: {raw_requirement}")
         test_agent = TestAgent()
         test_cases = test_agent.run(raw_requirements=raw_requirement)
-        logger.info(f"Returning {len(test_cases)} test cases from TestAgent")
+
+        # Call RelationAgent to get coverage %
+        relation_agent = RelationAgent()
+        rel_output = relation_agent.run(user_stories=raw_requirement, test_cases=test_cases)
+        test_case_relations = rel_output.get('test_case_to_story_relations', {})
+
+        # Add coverage % and relationship % to each test case
+        for tc in test_cases:
+            tc_id = tc.get('test_case_id') or tc.get('id')
+            tc['coverage'] = test_case_relations.get(tc_id, 0)
+            # Add relationship % if available
+            if 'relationship' not in tc:
+                tc['relationship'] = test_case_relations.get(tc_id, 0)
+
+        logger.info(f"Returning {len(test_cases)} test cases from TestAgent with coverage % and relationship %")
         return test_cases
     except Exception as e:
         logger.error(f"Error in get_test_cases: {str(e)}", exc_info=True)

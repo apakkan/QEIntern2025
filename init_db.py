@@ -52,6 +52,8 @@ def create_tables(conn):
         ''')
         print("Testcases table structure created/verified")
         
+        # ...central_vectors table creation removed...
+        
         # Check if table is empty
         cur.execute('SELECT COUNT(*) FROM requirements')
         count = cur.fetchone()[0]
