@@ -47,20 +47,20 @@ function ItemDetailsPage() {
         setRelatedStories(relatedData);
 
         // Fetch test cases
-        console.log('Fetching test cases...');
-        const testResponse = await fetch(`http://localhost:8000/requirements/${id}/test-cases`);
-        if (!testResponse.ok) {
-          if (testResponse.status === 404) {
-            console.log('No test cases found');
-            setTestCases([]);
-          } else {
-            throw new Error(`Error fetching test cases: ${testResponse.status}`);
-          }
-        } else {
-          const testData = await testResponse.json();
-          console.log('Found test cases:', testData);
-          setTestCases(testData);
-        }
+        // console.log('Fetching test cases...');
+        // const testResponse = await fetch(`http://localhost:8000/requirements/${id}/test-cases`);
+        // if (!testResponse.ok) {
+        //   if (testResponse.status === 404) {
+        //     console.log('No test cases found');
+        //     setTestCases([]);
+        //   } else {
+        //     throw new Error(`Error fetching test cases: ${testResponse.status}`);
+        //   }
+        // } else {
+        //   const testData = await testResponse.json();
+        //   console.log('Found test cases:', testData);
+        //   setTestCases(testData);
+        // }
         
         setLoading(false);
       } catch (error) {
@@ -193,37 +193,13 @@ function ItemDetailsPage() {
               fontSize: '1rem',
               cursor: 'pointer'
             }}
-            onClick={() => setShowPopup(true)}
+            onClick={handleGenerateTestCases}
+            disabled={testCaseLoading}
           >
-            Generate Test Cases
+            {testCaseLoading ? "Generating..." : "Generate Test Cases"}
           </button>
           </div>
           
-        {/* Popup for Test Case Creation*/}
-        {showPopup && (
-          <div style={popupStyles.overlay}>
-            <div style={popupStyles.popup}>
-              <button
-                style={popupStyles.button}
-                onClick={() => handleDownload('Excel/Word')}
-              >
-                Download in Excel or Word
-              </button>
-              <button
-                style={popupStyles.button}
-                onClick={handleInsertDB}
-              >
-                Insert in Database
-              </button>
-              <button
-                style={popupStyles.close}
-                onClick={() => setShowPopup(false)}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
 
         {/* Related Stories Table */}
         <h2 style={{ marginTop: '2rem' }}>Related Stories</h2>
@@ -259,34 +235,53 @@ function ItemDetailsPage() {
           </tbody>
         </table>
 
-        {/* Test Cases Table */}
-        <h2 style={{ marginTop: '2rem' }}>Regression Test Cases</h2>
-        <table style={styles.table}>
-          <thead>
-            <tr>
-              <th style={styles.th}>Test Case ID</th>
-              <th style={styles.th}>Title</th>
-              <th style={styles.th}>Description</th>
-              <th style={styles.th}>Coverage %</th>
-              <th style={styles.th}>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {mappedTestCases.map((test) => (
-              <tr key={test.id}>
-                <td style={styles.td}>{test.id}</td>
-                <td style={styles.td}>{test.title}</td>
-                <td style={styles.td}>{test.description}</td>
-                <td style={styles.td}>{test.coverage ?? ''}</td>
-                <td style={styles.td}>
-                  <button style={{ ...styles.button, backgroundColor: '#0070AD' }}>
-                    Run
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        {/* Test Cases Table: Only show after Generating Test Cases */}
+        {!testCaseLoading && testCases.length > 0 && (
+          <>
+            <h2 style={{ marginTop: '2rem' }}>Regression Test Cases</h2>
+            <button
+              style={{
+                marginBottom: '1rem',
+                padding: '0.5rem 1rem',
+                backgroundColor: '#0070AD',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+              }}
+              onClick={() => handleDownload('Excel/Word')}
+            >
+              Download Test Cases
+            </button>
+            <table style={styles.table}>
+              <thead>
+                <tr>
+                  <th style={styles.th}>Test Case ID</th>
+                  <th style={styles.th}>Title</th>
+                  <th style={styles.th}>Description</th>
+                  <th style={styles.th}>Coverage %</th>
+                  <th style={styles.th}>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {mappedTestCases.map((test) => (
+                  <tr key={test.id}>
+                    <td style={styles.td}>{test.id}</td>
+                    <td style={styles.td}>{test.title}</td>
+                    <td style={styles.td}>{test.description}</td>
+                    <td style={styles.td}>{test.coverage ?? ''}</td>
+                    <td style={styles.td}>
+                      <button style={{ ...styles.button, backgroundColor: '#0070AD' }}>
+                        Run
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        )}
       </div>
       {/* ChatBot Component */}
     </div>
@@ -318,50 +313,6 @@ const styles = {
     borderRadius: '4px',
     cursor: 'pointer',
   },
-};
-
-const popupStyles = {
-  overlay: {
-    position: 'fixed',
-    top: 0, left: 0, right: 0, bottom: 0,
-    background: 'rgba(0,0,0,0.3)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 1000,
-  },
-  popup: {
-    background: 'white',
-    padding: '2rem',
-    borderRadius: '8px',
-    boxShadow: '0 2px 12px rgba(0,0,0,0.2)',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    minWidth: '320px',
-  },
-  button: {
-    margin: '1rem 0',
-    padding: '0.75rem 1.5rem',
-    backgroundColor: '#007bff',
-    color: 'white',
-    border: 'none',
-    borderRadius: '4px',
-    fontSize: '1rem',
-    cursor: 'pointer',
-    width: '100%',
-  },
-  close: {
-    marginTop: '1rem',
-    padding: '0.5rem 1.5rem',
-    backgroundColor: '#888',
-    color: 'white',
-    border: 'none',
-    borderRadius: '4px',
-    fontSize: '1rem',
-    cursor: 'pointer',
-    width: '100%',
-  }
 };
 
 export default ItemDetailsPage;
