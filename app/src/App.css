@@ -1,6 +1,7 @@
 body {
-  background-color: #F6F6F6; /* Cool Grey 1 */
+  background-color: #F5faff; /* light blue */
   font-family: 'Ubuntu', Arial, sans-serif;
+  color: #003366; /*dark blue */
 }
 
 .App {
@@ -23,7 +24,7 @@ body {
 }
 
 .App-header {
-  background-color: #282c34;
+  background-color: #0070ad;
   min-height: 100vh;
   display: flex;
   flex-direction: column;

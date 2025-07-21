@@ -343,22 +343,18 @@ console.log('Filtered requirements:', filteredRequirements); // <-- ADD THIS
 
 const styles = {
   container: {
-   padding: '2rem',
+    backgroundColor: '#f5faff',
+    color: '#003366',
     fontFamily: 'Ubuntu, Arial, sans-serif',
-    backgroundColor: '#F6F6F6', // Light blue background
     minHeight: '100vh',
-    boxSizing: 'border-box', 
+    padding: '2rem'
   },
   filterPanel: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'flex-start',
-    marginBottom: '2rem',
-    maxWidth: '450px',
-    backgroundColor: '#ffffff', // White panel background
+    backgroundColor: '#ffffff',
     borderRadius: '8px',
     boxShadow: '0 2px 8px rgba(0,112,173,0.08)',
     padding: '1.5rem',
+    marginBottom: '2rem'
   },
   selectGroup: {
     display: 'flex',
@@ -397,28 +393,27 @@ const styles = {
     boxShadow: '0 2px 8px rgba(0,112,173,0.08)'
   },
   th: {
-    border: '1px solid #ccc',
+    backgroundColor: '#0070AD',
+    color: '#fff',
+    border: 'none',
     padding: '0.75rem',
-    backgroundColor: '#0070AD', // Capgemini Blue
-    color: '#fff', // white text
-    textAlign: 'left',
+    textAlign: 'left'
   },
   td: {
-    border: '1px solid #ccc',
+    backgroundColor: '#f5faff',
+    color: '#003366',
+    border: 'none',
     padding: '0.75rem',
-    textAlign: 'left',
-    backgroundColor: '#f5faff', // light blue row
-    color: 'black' // text
+    textAlign: 'left'
   },
   actionButton: {
-    padding: '0.5rem 1rem',
     backgroundColor: '#0070AD',
-    color: 'white',
+    color: '#fff',
     border: 'none',
     borderRadius: '4px',
-    cursor: 'pointer',
     fontWeight: 'bold',
-    transition: 'background 0.2s'
+    cursor: 'pointer',
+    padding: '0.5rem 1rem'
   },
   loadingContainer: {
     display: 'flex',

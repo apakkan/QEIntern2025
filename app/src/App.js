@@ -15,6 +15,16 @@ const styles = {
 function App() {
   return (
     <Router>
+      <header style={{
+  backgroundColor: '#0070AD',
+  color: '#fff',
+  padding: '1rem 2rem',
+  display: 'flex',
+  alignItems: 'center'
+}}>
+  <img src="/logo192.png" alt="Capgemini Logo" style={{ height: '40px', marginRight: '1rem' }} />
+  <h1 style={{ fontSize: '2rem', fontWeight: 700 }}>Tessy</h1>
+</header>
       <Routes>
         <Route path="/" element={<Navigate to="/home" replace />} />
         <Route path="/home" element={<HomePage />} />

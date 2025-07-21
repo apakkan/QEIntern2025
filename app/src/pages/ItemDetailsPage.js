@@ -108,7 +108,19 @@ function ItemDetailsPage() {
     setTestCaseLoading(false);
   };
 
-  if (loading) return <div style={{ padding: '2rem' }}>Loading...</div>;
+  if (loading) return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem' }}>
+      <div style={{
+        width: '40px',
+        height: '40px',
+        border: '4px solid #f3f3f3',
+        borderTop: '4px solid #0070AD',
+        borderRadius: '50%',
+        animation: 'spin 1s linear infinite'
+      }} />
+      <span style={{ marginLeft: '1rem', color: '#0070AD' }}>Loading...</span>
+    </div>
+  );
   if (testCaseLoading) return <div style={{ padding: '2rem' }}>Generating test cases...</div>;
   if (error) return <div style={{ padding: '2rem' }}>Error: {error}</div>;
   if (!item) return <div style={{ padding: '2rem' }}>Item not found.</div>;
@@ -135,6 +147,11 @@ function ItemDetailsPage() {
   return (
     <div style={{ display: 'flex', alignItems: 'flex-start' }}>
       <div style={{ flex: 1, padding: '2rem', fontFamily: 'Arial, sans-serif' }}>
+        {/* Navigation Breadcrumb */}
+        <nav style={{ marginBottom: '1rem', fontSize: '1rem', color: '#0070AD' }}>
+          <a href="/home" style={{ color: '#0070AD', textDecoration: 'underline' }}>Home</a> &gt; <span>{item?.name}</span>
+        </nav>
+
         <h2>{item.name}</h2>
         <p><strong>ID:</strong> {item.id}</p>
         <p><strong>Description:</strong> {item.description}</p>
@@ -272,7 +289,18 @@ function ItemDetailsPage() {
                     <td style={styles.td}>{test.description}</td>
                     <td style={styles.td}>{test.coverage ?? ''}</td>
                     <td style={styles.td}>
-                      <button style={{ ...styles.button, backgroundColor: '#0070AD' }}>
+                      <button
+                        title="Run this test case"
+                        style={{
+                          backgroundColor: '#0070AD',
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: '4px',
+                          fontWeight: 'bold',
+                          cursor: 'pointer',
+                          padding: '0.5rem 1rem'
+                        }}
+                      >
                         Run
                       </button>
                     </td>
@@ -289,30 +317,52 @@ function ItemDetailsPage() {
 }
 
 const styles = {
+  container: {
+    backgroundColor: '#f5faff',
+    color: '#003366',
+    fontFamily: 'Ubuntu, Arial, sans-serif',
+    minHeight: '100vh',
+    padding: '2rem'
+  },
+  filterPanel: {
+    backgroundColor: '#ffffff',
+    borderRadius: '8px',
+    boxShadow: '0 2px 8px rgba(0,112,173,0.08)',
+    padding: '1.5rem',
+    marginBottom: '2rem'
+  },
   table: {
     width: '100%',
     borderCollapse: 'collapse',
     marginTop: '1rem',
+    backgroundColor: '#ffffff', // White table background
+    borderRadius: '8px',
+    overflow: 'hidden',
+    boxShadow: '0 2px 8px rgba(0,112,173,0.08)'
   },
   th: {
-    border: '1px solid #ccc',
+    backgroundColor: '#0070AD',
+    color: '#fff',
+    border: 'none',
     padding: '0.75rem',
-    backgroundColor: '#f0f0f0',
-    textAlign: 'left',
+    textAlign: 'left'
   },
   td: {
-    border: '1px solid #ccc',
+    backgroundColor: '#f5faff',
+    color: '#003366',
+    border: 'none',
     padding: '0.75rem',
-    textAlign: 'left',
+    textAlign: 'left'
   },
-  button: {
-    padding: '0.5rem 1rem',
-    backgroundColor: '#007bff',
-    color: 'white',
+  actionButton: {
+    backgroundColor: '#0070AD',
+    color: '#fff',
     border: 'none',
     borderRadius: '4px',
+    fontWeight: 'bold',
     cursor: 'pointer',
-  },
+    padding: '0.5rem 1rem'
+  }
 };
 
 export default ItemDetailsPage;
