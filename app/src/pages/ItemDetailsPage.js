@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 
 function ItemDetailsPage() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [item, setItem] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -14,57 +15,29 @@ function ItemDetailsPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Fetch requirement details
-        console.log('Fetching requirement details for ID:', id);
         const reqResponse = await fetch(`http://localhost:8000/requirements/${id}`);
-        
         if (!reqResponse.ok) {
-          if (reqResponse.status === 404) {
-            throw new Error('Requirement not found');
-          }
+          if (reqResponse.status === 404) throw new Error('Requirement not found');
           throw new Error(`HTTP error! status: ${reqResponse.status}`);
         }
-        
         const reqData = await reqResponse.json();
         setItem({
           id: reqData.id,
           name: reqData.user_story,
           description: reqData.description || 'No Description',
           functionality: reqData.functionality || 'Not Specified',
-          risk_score: reqData.risk_score || 'Not Assessed', // Change from priority
+          risk_score: reqData.risk_score || 'Not Assessed',
           release: reqData.release || 'Not Set',
           project: reqData.project || 'Project 1'
         });
 
-        // Fetch related stories
-        console.log('Fetching related stories...');
         const relatedResponse = await fetch(`http://localhost:8000/requirements/${id}/related-stories`);
-        if (!relatedResponse.ok) {
-          throw new Error(`Error fetching related stories: ${relatedResponse.status}`);
-        }
+        if (!relatedResponse.ok) throw new Error(`Error fetching related stories: ${relatedResponse.status}`);
         const relatedData = await relatedResponse.json();
-        console.log('Found related stories:', relatedData);
         setRelatedStories(relatedData);
 
-        // Fetch test cases
-        // console.log('Fetching test cases...');
-        // const testResponse = await fetch(`http://localhost:8000/requirements/${id}/test-cases`);
-        // if (!testResponse.ok) {
-        //   if (testResponse.status === 404) {
-        //     console.log('No test cases found');
-        //     setTestCases([]);
-        //   } else {
-        //     throw new Error(`Error fetching test cases: ${testResponse.status}`);
-        //   }
-        // } else {
-        //   const testData = await testResponse.json();
-        //   console.log('Found test cases:', testData);
-        //   setTestCases(testData);
-        // }
-        
         setLoading(false);
       } catch (error) {
-        console.error('Error:', error);
         setError(error.message);
         setLoading(false);
       }
@@ -73,25 +46,12 @@ function ItemDetailsPage() {
     fetchData();
   }, [id]);
 
-  const getPriorityColor = (priority) => {
-    switch (priority?.toLowerCase()) {
-      case 'high':
-        return '#ff4d4f';
-      case 'medium':
-        return '#faad14';
-      case 'low':
-        return '#52c41a';
-      default:
-        return '#d9d9d9';
-    }
-  };
-
   const getRiskColor = (riskScore) => {
     const score = parseInt(riskScore);
-    if (isNaN(score)) return '#808080'; // gray for "Not Assessed"
-    if (score <= 3) return '#52c41a';   // green for low risk (1-3)
-    if (score <= 7) return '#faad14';   // yellow for medium risk (4-7)
-    return '#ff4d4f'; // red for high risk (8-10)
+    if (isNaN(score)) return '#808080';
+    if (score <= 3) return '#52c41a';
+    if (score <= 7) return '#faad14';
+    return '#ff4d4f';
   };
 
   const handleGenerateTestCases = async () => {
@@ -101,12 +61,24 @@ function ItemDetailsPage() {
       if (!response.ok) throw new Error('Failed to generate test cases');
       const data = await response.json();
       setTestCases(data);
-      setShowPopup(false); // Hide popup after generation
+      setShowPopup(false);
     } catch (error) {
       setError(error.message);
     }
     setTestCaseLoading(false);
   };
+
+  const handleDownload = (type) => {
+    setShowPopup(false);
+    alert(`Download Test Cases as ${type}`);
+  };
+
+  const mappedTestCases = testCases.map(tc => ({
+    id: tc.test_case_id || tc.id,
+    title: tc.title,
+    description: tc.test_description || tc.description,
+    coverage: tc.coverage
+  }));
 
   if (loading) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem' }}>
@@ -125,193 +97,150 @@ function ItemDetailsPage() {
   if (error) return <div style={{ padding: '2rem' }}>Error: {error}</div>;
   if (!item) return <div style={{ padding: '2rem' }}>Item not found.</div>;
 
-  const handleDownload = (type) => {
-    setShowPopup(false);
-    alert(`Download Test Cases as ${type}`);
-    
-  };
-  const handleInsertDB = () => {
-    setShowPopup(false);
-    alert('Insert Test Cases into Database');
-
-  };
-
-  // Map backend test case fields to frontend table fields
-  const mappedTestCases = testCases.map(tc => ({
-    id: tc.test_case_id || tc.id, // Use test_case_id as the Test Case ID
-    title: tc.title,
-    description: tc.test_description || tc.description,
-    coverage: tc.coverage // may be undefined
-  }));
-
   return (
-    <div style={{ display: 'flex', alignItems: 'flex-start' }}>
-      <div style={{ flex: 1, padding: '2rem', fontFamily: 'Arial, sans-serif' }}>
-        {/* Navigation Breadcrumb */}
-        <nav style={{ marginBottom: '1rem', fontSize: '1rem', color: '#0070AD' }}>
-          <a href="/home" style={{ color: '#0070AD', textDecoration: 'underline' }}>Home</a> &gt; <span>{item?.name}</span>
-        </nav>
-
-        <h2>{item.name}</h2>
-        <p><strong>ID:</strong> {item.id}</p>
-        <p><strong>Description:</strong> {item.description}</p>
-        <p><strong>Functionality:</strong> {item.functionality}</p>
-        <p><strong>Project:</strong> {item.project}</p>
-        <p><strong>Release:</strong> {item.release}</p>
-        <p>
-          <strong>Risk Score:</strong>{' '}
-          <span style={{
-            backgroundColor: getRiskColor(item.risk_score),
-            color: item.risk_score === 'Not Assessed' ? 'black' : 'white',
-            padding: '0.25rem 0.5rem',
-            borderRadius: '4px',
-            fontWeight: 'bold'
-          }}>
-            {item.risk_score}
-          </span>
-        </p>
-        {/* <div style={{ marginTop: '2rem' }}>
-          <button
-            style={{
-              marginRight: '1rem',
-              padding: '0.5rem 1rem',
-              backgroundColor: '#ff4d4f',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px'
-            }}
-            onClick={() => alert('This would delete the story')}
-          >
-            Delete
-          </button>
-          <button
-            style={{
-              padding: '0.5rem 1rem',
-              backgroundColor: '#0070AD', // Capgemini Blue
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px'
-            }}
-            onClick={() => alert('This would refine the story')}
-          >
-            Refine
-          </button>
-        </div> */}
-
-      {/*TC Generation*/}
-      <div style={{ marginTop: '2rem' }}>
-          <button
-            style={{
-              padding: '0.5rem 1.5rem',
-              backgroundColor: '#28a745',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              fontSize: '1rem',
-              cursor: 'pointer'
-            }}
-            onClick={handleGenerateTestCases}
-            disabled={testCaseLoading}
-          >
-            {testCaseLoading ? "Generating..." : "Generate Test Cases"}
-          </button>
-          </div>
-          
-
-        {/* Related Stories Table */}
-        <h2 style={{ marginTop: '2rem' }}>Related Stories</h2>
-        <table style={styles.table}>
-          <thead>
-            <tr>
-              <th style={styles.th}>ID</th>
-              <th style={styles.th}>Item</th>
-              <th style={styles.th}>Description</th>
-              <th style={styles.th}>Relationship %</th>
-              {/* <th style={styles.th}>Action</th> */}
-            </tr>
-          </thead>
-          <tbody>
-            {relatedStories.map((story) => (
-              <tr key={story.id}>
-                <td style={styles.td}>{story.id}</td>
-                <td style={styles.td}>{story.name}</td>
-                <td style={styles.td}>{story.description}</td>
-                <td style={styles.td}>{story.relationship}%</td>
-                {/* <td style={styles.td}>
-                  <button
-                    style={{
-                      ...styles.button,
-                      backgroundColor: '#0070AD', // Capgemini Blue for View
-                    }}
-                  >
-                    View
-                  </button>
-                </td> */}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
-        {/* Test Cases Table: Only show after Generating Test Cases */}
-        {!testCaseLoading && testCases.length > 0 && (
-          <>
-            <h2 style={{ marginTop: '2rem' }}>Regression Test Cases</h2>
+    <div style={styles.container}>
+      <div style={{ display: 'flex', alignItems: 'flex-start' }}>
+        <div style={{ flex: 1, padding: '2rem', fontFamily: 'Arial, sans-serif' }}>
+          {/* Navigation Breadcrumb */}
+          <nav style={{ marginBottom: '1rem', fontSize: '1rem', color: '#0070AD' }}>
             <button
               style={{
-                marginBottom: '1rem',
-                padding: '0.5rem 1rem',
                 backgroundColor: '#0070AD',
-                color: 'white',
+                color: '#fff',
                 border: 'none',
                 borderRadius: '4px',
                 fontWeight: 'bold',
                 cursor: 'pointer',
+                padding: '0.5rem 1rem',
+                marginRight: '1rem'
               }}
-              onClick={() => handleDownload('Excel/Word')}
+              onClick={() => navigate(-1)}
             >
-              Download Test Cases
+              Back
             </button>
-            <table style={styles.table}>
-              <thead>
-                <tr>
-                  <th style={styles.th}>Test Case ID</th>
-                  <th style={styles.th}>Title</th>
-                  <th style={styles.th}>Description</th>
-                  <th style={styles.th}>Coverage %</th>
-                  <th style={styles.th}>Action</th>
+            <span>{item?.name}</span>
+          </nav>
+
+          <h2>{item.name}</h2>
+          <p><strong>ID:</strong> {item.id}</p>
+          <p><strong>Description:</strong> {item.description}</p>
+          <p><strong>Functionality:</strong> {item.functionality}</p>
+          <p><strong>Project:</strong> {item.project}</p>
+          <p><strong>Release:</strong> {item.release}</p>
+          <p>
+            <strong>Risk Score:</strong>{' '}
+            <span style={{
+              backgroundColor: getRiskColor(item.risk_score),
+              color: item.risk_score === 'Not Assessed' ? 'black' : 'white',
+              padding: '0.25rem 0.5rem',
+              borderRadius: '4px',
+              fontWeight: 'bold'
+            }}>
+              {item.risk_score}
+            </span>
+          </p>
+
+          <div style={{ marginTop: '2rem' }}>
+            <button
+              style={{
+                padding: '0.5rem 1.5rem',
+                backgroundColor: '#28a745',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                fontSize: '1rem',
+                cursor: 'pointer'
+              }}
+              onClick={handleGenerateTestCases}
+              disabled={testCaseLoading}
+            >
+              {testCaseLoading ? "Generating..." : "Generate Test Cases"}
+            </button>
+          </div>
+
+          {/* Related Stories Table */}
+          <h2 style={{ marginTop: '2rem' }}>Related Stories</h2>
+          <table style={styles.table}>
+            <thead>
+              <tr>
+                <th style={styles.th}>ID</th>
+                <th style={styles.th}>Item</th>
+                <th style={styles.th}>Description</th>
+                <th style={styles.th}>Relationship %</th>
+              </tr>
+            </thead>
+            <tbody>
+              {relatedStories.map((story) => (
+                <tr key={story.id}>
+                  <td style={styles.td}>{story.id}</td>
+                  <td style={styles.td}>{story.name}</td>
+                  <td style={styles.td}>{story.description}</td>
+                  <td style={styles.td}>{story.relationship}%</td>
                 </tr>
-              </thead>
-              <tbody>
-                {mappedTestCases.map((test) => (
-                  <tr key={test.id}>
-                    <td style={styles.td}>{test.id}</td>
-                    <td style={styles.td}>{test.title}</td>
-                    <td style={styles.td}>{test.description}</td>
-                    <td style={styles.td}>{test.coverage ?? ''}</td>
-                    <td style={styles.td}>
-                      <button
-                        title="Run this test case"
-                        style={{
-                          backgroundColor: '#0070AD',
-                          color: '#fff',
-                          border: 'none',
-                          borderRadius: '4px',
-                          fontWeight: 'bold',
-                          cursor: 'pointer',
-                          padding: '0.5rem 1rem'
-                        }}
-                      >
-                        Run
-                      </button>
-                    </td>
+              ))}
+            </tbody>
+          </table>
+
+          {/* Test Cases Table: Only show after Generating Test Cases */}
+          {!testCaseLoading && testCases.length > 0 && (
+            <>
+              <h2 style={{ marginTop: '2rem' }}>Regression Test Cases</h2>
+              <button
+                style={{
+                  marginBottom: '1rem',
+                  padding: '0.5rem 1rem',
+                  backgroundColor: '#0070AD',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                }}
+                onClick={() => handleDownload('Excel/Word')}
+              >
+                Download Test Cases
+              </button>
+              <table style={styles.table}>
+                <thead>
+                  <tr>
+                    <th style={styles.th}>Test Case ID</th>
+                    <th style={styles.th}>Title</th>
+                    <th style={styles.th}>Description</th>
+                    <th style={styles.th}>Coverage %</th>
+                    <th style={styles.th}>Action</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </>
-        )}
+                </thead>
+                <tbody>
+                  {mappedTestCases.map((test) => (
+                    <tr key={test.id}>
+                      <td style={styles.td}>{test.id}</td>
+                      <td style={styles.td}>{test.title}</td>
+                      <td style={styles.td}>{test.description}</td>
+                      <td style={styles.td}>{test.coverage ?? ''}</td>
+                      <td style={styles.td}>
+                        <button
+                          title="Run this test case"
+                          style={{
+                            backgroundColor: '#0070AD',
+                            color: '#fff',
+                            border: 'none',
+                            borderRadius: '4px',
+                            fontWeight: 'bold',
+                            cursor: 'pointer',
+                            padding: '0.5rem 1rem'
+                          }}
+                        >
+                          Run
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )}
+        </div>
       </div>
-      {/* ChatBot Component */}
     </div>
   );
 }
@@ -319,23 +248,16 @@ function ItemDetailsPage() {
 const styles = {
   container: {
     backgroundColor: '#f5faff',
-    color: '#003366',
-    fontFamily: 'Ubuntu, Arial, sans-serif',
     minHeight: '100vh',
-    padding: '2rem'
-  },
-  filterPanel: {
-    backgroundColor: '#ffffff',
-    borderRadius: '8px',
-    boxShadow: '0 2px 8px rgba(0,112,173,0.08)',
-    padding: '1.5rem',
-    marginBottom: '2rem'
+    padding: '2rem',
+    fontFamily: 'Ubuntu, Arial, sans-serif',
+    color: '#003366'
   },
   table: {
     width: '100%',
     borderCollapse: 'collapse',
     marginTop: '1rem',
-    backgroundColor: '#ffffff', // White table background
+    backgroundColor: '#ffffff',
     borderRadius: '8px',
     overflow: 'hidden',
     boxShadow: '0 2px 8px rgba(0,112,173,0.08)'

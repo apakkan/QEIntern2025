@@ -1,5 +1,5 @@
 body {
-  background-color: #F5faff; /* light blue */
+  background-color: #f5faff; /* white */
   font-family: 'Ubuntu', Arial, sans-serif;
   color: #003366; /*dark blue */
 }
@@ -45,4 +45,9 @@ body {
   to {
     transform: rotate(360deg);
   }
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg);}
+  100% { transform: rotate(360deg);}
 }
