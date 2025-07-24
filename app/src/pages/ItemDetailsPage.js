@@ -206,7 +206,6 @@ function ItemDetailsPage() {
                     <th style={styles.th}>Test Case ID</th>
                     <th style={styles.th}>Title</th>
                     <th style={styles.th}>Description</th>
-                    <th style={styles.th}>Coverage %</th>
                     <th style={styles.th}>Action</th>
                   </tr>
                 </thead>
@@ -216,7 +215,6 @@ function ItemDetailsPage() {
                       <td style={styles.td}>{test.id}</td>
                       <td style={styles.td}>{test.title}</td>
                       <td style={styles.td}>{test.description}</td>
-                      <td style={styles.td}>{test.coverage ?? ''}</td>
                       <td style={styles.td}>
                         <button
                           title="Run this test case"

@@ -175,11 +175,15 @@ function HomePage() {
     return <div>Error: {error}</div>;
   }
 
-  const paginatedRequirements = filteredRequirements.slice((currentPage-1)*pageSize, currentPage*pageSize);
-  const searchedRequirements = paginatedRequirements.filter(req =>
+  const searchedRequirements = filteredRequirements.filter(req =>
     req.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    req.description.toLowerCase().includes(searchTerm.toLowerCase())
+    req.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    String(req.id).toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (req.release && req.release.toLowerCase().includes(searchTerm.toLowerCase()))
   );
+
+
+  const paginatedRequirements = searchedRequirements.slice((currentPage-1)*pageSize, currentPage*pageSize);
 
   return (
     <div style={styles.container}>
@@ -205,11 +209,11 @@ function HomePage() {
         <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: '1rem' }}>
           <input
             type="text"
-            placeholder="Search requirements..."
+            placeholder="Search by ID, Keywords..."
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
             style={styles.searchBarSmall}
-            aria-label="Search requirements"
+            aria-label="Search by ID, Keywords..."      
           />
         </div>
         <div style={styles.selectGroup}>
@@ -280,7 +284,7 @@ function HomePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {searchedRequirements.map((row) => (
+                  {paginatedRequirements.map((row) => (
                     <tr key={row.id}>
                       <td style={styles.td}>{row.id}</td>
                       <td style={styles.td}>{row.title}</td>
