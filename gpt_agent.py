@@ -1,6 +1,7 @@
 # Imports and environment setup
 import json
 import os
+from functools import lru_cache
 from openai import AzureOpenAI as OpenAIAzureClient
 from dotenv import load_dotenv
 from agno.agent import Agent
@@ -19,26 +20,23 @@ import time
 load_dotenv()
 
 # --- Azure OpenAI and Neo4j Setup ---
-API_KEY = os.getenv("API_KEY")
-API_VERSION = os.getenv("API_VERSION")
-ENDPOINT = os.getenv("ENDPOINT")
 DEPLOYMENT_NAME = os.getenv("DEPLOYMENT_NAME")
 
-# Initialize Azure OpenAI client
-client = OpenAIAzureClient(
-    api_key=API_KEY,
-    api_version=API_VERSION,
-    azure_endpoint=ENDPOINT,
-)
+@lru_cache(maxsize=1)
+def _get_client():
+    return OpenAIAzureClient(
+        api_key=os.getenv("API_KEY"),
+        api_version=os.getenv("API_VERSION"),
+        azure_endpoint=os.getenv("ENDPOINT"),
+    )
 
-
-
-# Initialize Neo4j graph connection
-graph = Neo4jGraph(
-    url=os.getenv('NEO4J_URI'),
-    username=os.getenv('NEO4J_USERNAME'),
-    password=os.getenv('NEO4J_PASSWORD')
-)
+@lru_cache(maxsize=1)
+def _get_graph():
+    return Neo4jGraph(
+        url=os.getenv('NEO4J_URI'),
+        username=os.getenv('NEO4J_USERNAME'),
+        password=os.getenv('NEO4J_PASSWORD')
+    )
 
 # --- Data Fetching Functions ---
 def fetch_raw_requirements():
@@ -87,7 +85,7 @@ def refine_requirement(raw_requirement: list) -> list:
             "content": f"Analyze the following requirements:\n\n {formatted}",
         }
     ]
-    response = client.chat.completions.create(
+    response = _get_client().chat.completions.create(
         model=DEPLOYMENT_NAME,
         messages=messages
     )
@@ -117,7 +115,7 @@ def generate_test_cases_tool(raw_requirement: list) -> list:
         },
         { "role": "user", "content": formatted }
     ]
-    response = client.chat.completions.create(
+    response = _get_client().chat.completions.create(
         model=DEPLOYMENT_NAME,
         messages=messages
     )
@@ -157,7 +155,7 @@ def find_relations(user_stories: list, test_cases: list) -> list:
             "content": f"Analyze the following requirements:\n\n {formatted}",
         }
     ]
-    response = client.chat.completions.create(
+    response = _get_client().chat.completions.create(
         model=DEPLOYMENT_NAME,
         messages=messages
     )
@@ -189,7 +187,7 @@ def analyze_risk(user_stories: list) -> str:
             "content": f"Analyze the following user stories for risk/priority:\n\n {formatted}",
         }
     ]
-    response = client.chat.completions.create(
+    response = _get_client().chat.completions.create(
         model=DEPLOYMENT_NAME,
         messages=messages
     )
@@ -423,7 +421,7 @@ class RiskAgent(Agent):
 # --- Utility Functions ---
 def get_requirements_from_kg():
     """Fetch requirements from the Neo4j knowledge graph."""
-    results = graph.query("MATCH (r:Requirement) RETURN r")
+    results = _get_graph().query("MATCH (r:Requirement) RETURN r")
     return [record['r'] for record in results]
 
 def batch_upsert_requirements_to_neo4j(requirements, embeddings, batch_size=1):
