@@ -1,14 +1,15 @@
 import os
 import sys
-import time
 import json
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from gpt_agent import RequirementAgent, TestAgent, get_requirements_from_kg, strip_code_blocks
+import pytest
+from gpt_agent import RequirementAgent, TestAgent, get_requirements_from_kg
 from database.qtest_db import connect_db, upsert_central_vector
 from database.embedding_utils import get_embedding
 from langchain_neo4j import Neo4jGraph
+
 
 def remove_vectors(data):
     if isinstance(data, list):
@@ -22,6 +23,8 @@ def remove_vectors(data):
     else:
         return data
 
+
+@pytest.mark.integration
 def test_end_to_end_workflow():
     # 1. Load requirements from DB (populated from qTest)
     conn = connect_db()
@@ -34,15 +37,9 @@ def test_end_to_end_workflow():
     rows.close()
     assert raw_requirements, "No requirements found in the database!"
 
-    # 2. Run RequirementAgent to enrich requirements
+    # 2. Run RequirementAgent to enrich requirements (returns a parsed list directly)
     req_agent = RequirementAgent()
-    req_output = req_agent.run(raw_requirements=raw_requirements)
-    req_output_clean = strip_code_blocks(req_output)
-    try:
-        req_output_list = json.loads(req_output_clean)
-    except Exception as e:
-        print(f"Error parsing requirement agent output: {e}\nOutput was: {req_output_clean}")
-        req_output_list = []
+    req_output_list = req_agent.run(raw_requirements=raw_requirements)
     assert req_output_list, "RequirementAgent did not return valid output!"
 
     # 3. Insert enriched requirements into central_vectors and Neo4j
@@ -73,7 +70,6 @@ def test_end_to_end_workflow():
 
     # 5. Run TestAgent using requirements from KG
     enriched_reqs = get_requirements_from_kg()
-    # Flatten and ensure 'user_story' and 'description' keys exist
     enriched_reqs = [
         {
             **(record['r'] if 'r' in record else record),
@@ -92,13 +88,7 @@ def test_end_to_end_workflow():
     ]
     print("enriched_reqs (flattened):", json.dumps(remove_vectors(enriched_reqs), indent=2))
     test_agent = TestAgent()
-    # You may need to reload or parse requirement analysis for TestAgent
     test_cases = test_agent.run(raw_requirements=enriched_reqs, req_analysis=req_output_list)
     assert test_cases, "No test cases generated from KG!"
     print("Generated test cases:", json.dumps(test_cases, indent=2))
-    print("enriched_reqs:", json.dumps(remove_vectors(enriched_reqs), indent=2))
-
     print("End-to-end workflow test passed.")
-
-if __name__ == "__main__":
-    test_end_to_end_workflow()

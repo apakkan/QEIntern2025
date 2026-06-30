@@ -1,12 +1,18 @@
-from dotenv import load_dotenv
-load_dotenv()
+import os
+import sys
 
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+import pytest
+from dotenv import load_dotenv
 from init_db import main as init_db_main
 
-def main():
-    # Initialize DB (create tables and insert sample data)
-    init_db_main()
-    print("DB initialized. Add your API tests here.")
+load_dotenv()
 
-if __name__ == "__main__":
-    main()
+
+@pytest.mark.integration
+def test_api_db_init():
+    init_db_main()
+    # If init_db_main() raises, the test fails; reaching here means the DB
+    # initialized without error.
+    assert True, "DB initialization failed"

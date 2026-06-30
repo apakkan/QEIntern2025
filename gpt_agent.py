@@ -6,7 +6,6 @@ from openai import AzureOpenAI as OpenAIAzureClient
 from dotenv import load_dotenv
 from agno.agent import Agent
 from agno.tools import tool
-from agno import memory
 from agno.models.azure import AzureOpenAI as AgnoAzureModel
 import sys
 from tools.db_tools import query_postgres, vector_search_tool, query_postgres_tool
@@ -199,7 +198,6 @@ def analyze_risk(user_stories: list) -> str:
 class RequirementAgent(Agent):
     """Agent for analyzing requirements and writing results to the database and Neo4j."""
     tools = [refine_requirement]
-    memory = memory.Memory(memory="")
 
     def run(self, **kwargs):
         """Run requirement analysis using the LLM and write to the database."""
@@ -238,7 +236,7 @@ class RequirementAgent(Agent):
                 "agent_output": json.dumps(req)
             }
             properties = {k: v for k, v in properties.items() if v is not None}
-            graph.query("""
+            _get_graph().query("""
                 MERGE (r:Requirement {story_number: $story_number})
                 SET r += $properties
                 WITH r
@@ -252,7 +250,6 @@ class RequirementAgent(Agent):
 class TestAgent(Agent):
     """Agent for generating test cases for requirements and writing to the database."""
     tools = [generate_test_cases_tool]
-    memory = memory.Memory(memory="")
 
     def run(self, **kwargs):
         raw_requirements = kwargs["raw_requirements"]
@@ -320,7 +317,6 @@ class TestAgent(Agent):
 class RelationAgent(Agent):
     """Agent for analyzing relations between user stories and test cases using LLM."""
     tools = [find_relations]
-    memory = memory.Memory(memory="")
 
     def run(self, **kwargs):
         user_stories = kwargs["user_stories"]
@@ -385,7 +381,6 @@ class RelationAgent(Agent):
 class RiskAgent(Agent):
     """Agent for analyzing risk and business priority for user stories."""
     tools = [analyze_risk]
-    memory = memory.Memory(memory="")
 
     def run(self, **kwargs):
         user_stories = kwargs["user_stories"]
