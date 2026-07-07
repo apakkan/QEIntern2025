@@ -1,6 +1,7 @@
 import time
 import psycopg2
 import os
+import re
 import requests
 import json
 from database.embedding_utils import get_embedding
@@ -121,23 +122,29 @@ def create_tables(conn):
     print("Tables created successfully")
 
 # ==== Insert Functions ====
-def insert_requirement(conn, req_id, title, description, status):
+def insert_requirement(conn, req_id, title, description, status, priority=None, sprint=None):
     """
     Insert or update a requirement with embedding.
+
+    ``priority`` and ``sprint`` are optional (default None) so pre-existing
+    callers keep working; the qTest ingestion path (see map_qtest_requirement)
+    now supplies them from the item's properties[].
     """
     embedding = get_embedding(f"{title} {description}")
     cursor = conn.cursor()
     cursor.execute(
         """
-        INSERT INTO requirements (id, title, description, status, embedding)
-        VALUES (%s, %s, %s, %s, %s)
+        INSERT INTO requirements (id, title, description, status, priority, sprint, embedding)
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT (id) DO UPDATE SET
             title = EXCLUDED.title,
             description = EXCLUDED.description,
             status = EXCLUDED.status,
+            priority = EXCLUDED.priority,
+            sprint = EXCLUDED.sprint,
             embedding = EXCLUDED.embedding
         """,
-        (req_id, title, description, status, embedding)
+        (req_id, title, description, status, priority, sprint, embedding)
     )
     conn.commit()
     cursor.close()
@@ -293,6 +300,55 @@ def fetch_qtest_entities(api_url_env, entity_name, sort_param="id"):
 
     print(f"Total unique {entity_name} fetched: {len(all_data)}")
     return all_data
+
+# qTest keeps the real requirement content (Description/Status/Priority/Release)
+# in the item's ``properties[]`` array, NOT at the top level — a top-level-only
+# pull yields empty-bodied shells the agents can't analyze. Match by field_name
+# (case-insensitive) rather than a project-specific field_id so the mapping
+# survives across qTest projects. "Release" is qTest's sprint/iteration field.
+_QTEST_PROPERTY_MAP = {
+    "description": "description",
+    "status": "status",
+    "priority": "priority",
+    "release": "sprint",
+}
+
+_HTML_TAG = re.compile(r"<[^>]+>")
+
+
+def _strip_html(text):
+    """qTest rich-text fields arrive as HTML (e.g. ``<p>...</p>``). Reduce to
+    plain text so embeddings/agents see clean content."""
+    if not text:
+        return ""
+    return _HTML_TAG.sub("", str(text)).strip()
+
+
+def map_qtest_requirement(item):
+    """Map a raw qTest requirement item to the ``requirements`` table fields.
+
+    Pulls Description/Status/Priority/Release out of ``properties[]`` (where the
+    real content lives) and falls back to safe defaults so a bare item still
+    produces a valid, insertable row.
+    """
+    mapped = {
+        "title": item.get("name") or "Untitled",
+        "description": "",
+        "status": "New",
+        "priority": "",
+        "sprint": "",
+    }
+    for prop in item.get("properties") or []:
+        key = _QTEST_PROPERTY_MAP.get((prop.get("field_name") or "").strip().lower())
+        if not key:
+            continue
+        value = prop.get("field_value_name") or prop.get("field_value") or ""
+        if key == "description":
+            value = _strip_html(value)
+        if value:
+            mapped[key] = value
+    return mapped
+
 
 def get_qtest_requirements():
     """

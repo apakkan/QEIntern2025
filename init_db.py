@@ -1,4 +1,10 @@
-from database.qtest_db import connect_db, create_tables, get_qtest_requirements, insert_requirement
+from database.qtest_db import (
+    connect_db,
+    create_tables,
+    get_qtest_requirements,
+    insert_requirement,
+    map_qtest_requirement,
+)
 
 def main():
     conn = connect_db()
@@ -7,12 +13,18 @@ def main():
         requirements = get_qtest_requirements()
         if requirements:
             for req in requirements:
+                # Real content (description/status/priority/sprint) lives in the
+                # qTest item's properties[]; map_qtest_requirement extracts it so
+                # we ingest usable requirements, not title-only shells.
+                mapped = map_qtest_requirement(req)
                 insert_requirement(
                     conn,
                     req_id=req["id"],
-                    title=req.get("name", "Untitled"),
-                    description=req.get("description", ""),
-                    status=req.get("status", "New")
+                    title=mapped["title"],
+                    description=mapped["description"],
+                    status=mapped["status"],
+                    priority=mapped["priority"],
+                    sprint=mapped["sprint"],
                 )
         conn.close()
 
