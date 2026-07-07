@@ -487,6 +487,75 @@ def get_or_compute_risk(conn, requirement_id, agent=None):
     return {**parse_risk_output(raw), "source": "computed"}
 
 
+# ── cached test-case generation (P5) ─────────────────────────────────────────
+
+def get_cached_testcases(conn, requirement_id):
+    """Return the cached test cases for a requirement, or None if never generated."""
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT agent_output FROM central_vectors "
+            "WHERE story_number = %s AND source = 'test_agent'",
+            (requirement_id,),
+        )
+        row = cur.fetchone()
+    if row is None or row[0] is None:
+        return None
+    return (row[0] or {}).get("test_cases")
+
+
+def get_or_compute_testcases(conn, requirement_id, regenerate=False,
+                             test_agent=None, relation_agent=None):
+    """Test cases for a requirement, generated once and cached so repeat views are
+    stable (the LLM was re-run on every call before, so counts drifted).
+
+    Cache-hit serves the stored set with no LLM call; cache-miss — or
+    ``regenerate=True`` — runs TestAgent + RelationAgent (both injectable), enriches
+    each case with coverage, caches under source 'test_agent', and returns it.
+
+    Raises:
+        LookupError: the requirement id does not exist.
+    """
+    if not regenerate:
+        cached = get_cached_testcases(conn, requirement_id)
+        if cached is not None:
+            return cached
+
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT id, user_story, description, functionality FROM requirements WHERE id = %s",
+            (requirement_id,),
+        )
+        row = cur.fetchone()
+    if row is None:
+        raise LookupError(f"requirement {requirement_id} not found")
+
+    raw_requirement = [{
+        "story_number": row[0],
+        "user_story": row[1] or "",
+        "description": row[2] or "",
+        "functionality": row[3] or "",
+    }]
+    test_agent = test_agent or TestAgent()
+    test_cases = test_agent.run(raw_requirements=raw_requirement) or []
+
+    relation_agent = relation_agent or RelationAgent()
+    rel_output = relation_agent.run(user_stories=raw_requirement, test_cases=test_cases) or {}
+    relations = rel_output.get("test_case_to_story_relations", {})
+    for tc in test_cases:
+        tc_id = tc.get("test_case_id") or tc.get("id")
+        tc["coverage"] = relations.get(tc_id, 0)
+        if "relationship" not in tc:
+            tc["relationship"] = relations.get(tc_id, 0)
+
+    upsert_central_vector(
+        conn, story_number=requirement_id, source="test_agent",
+        title=None, description=None, user_persona=None, user_story=None,
+        functionality=None, related_stories=None, business_priority=None,
+        agent_output={"test_cases": test_cases}, embedding=None,
+    )
+    return test_cases
+
+
 # --- Utility Functions ---
 def get_requirements_from_kg():
     """Fetch requirements from the Neo4j knowledge graph."""

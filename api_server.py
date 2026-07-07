@@ -6,7 +6,10 @@ import logging
 from database.embedding_utils import get_embedding
 from database.rag_utils import find_related_requirements
 from init_db import create_tables
-from gpt_agent import TestAgent, RelationAgent, get_or_compute_risk, get_cached_risk
+from gpt_agent import (
+    TestAgent, RelationAgent, get_or_compute_risk, get_cached_risk,
+    get_or_compute_testcases,
+)
 
 app = FastAPI()
 
@@ -245,50 +248,22 @@ async def get_related_stories(requirement_id: int):
             conn.close()
 
 @app.get("/requirements/{requirement_id}/test-cases")
-async def get_test_cases(requirement_id: int):
+async def get_test_cases(requirement_id: int, regenerate: bool = False):
+    # Test cases are generated once and cached so repeat views are stable (the LLM
+    # was re-run on every call before, so counts drifted 5/6/8). ?regenerate=true
+    # forces a fresh generation and recaches.
     try:
         conn = get_pg_conn()
-        cur = conn.cursor()
-        cur.execute("""
-            SELECT id, user_story, description, functionality
-            FROM requirements
-            WHERE id = %s
-        """, (requirement_id,))
-        row = cur.fetchone()
-        if not row:
-            logger.error(f"Requirement {requirement_id} not found")
+        try:
+            return get_or_compute_testcases(conn, requirement_id, regenerate=regenerate)
+        except LookupError:
             raise HTTPException(status_code=404, detail="Requirement not found")
-        raw_requirement = [{
-            "story_number": row[0],
-            "user_story": row[1] or "",
-            "description": row[2] or "",
-            "functionality": row[3] or ""
-        }]
-        logger.info(f"Calling TestAgent for requirement: {raw_requirement}")
-        test_agent = TestAgent()
-        test_cases = test_agent.run(raw_requirements=raw_requirement)
-
-        # Call RelationAgent to get coverage %
-        relation_agent = RelationAgent()
-        rel_output = relation_agent.run(user_stories=raw_requirement, test_cases=test_cases)
-        test_case_relations = rel_output.get('test_case_to_story_relations', {})
-
-        # Add coverage % and relationship % to each test case
-        for tc in test_cases:
-            tc_id = tc.get('test_case_id') or tc.get('id')
-            tc['coverage'] = test_case_relations.get(tc_id, 0)
-            # Add relationship % if available
-            if 'relationship' not in tc:
-                tc['relationship'] = test_case_relations.get(tc_id, 0)
-
-        logger.info(f"Returning {len(test_cases)} test cases from TestAgent with coverage % and relationship %")
-        return test_cases
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error in get_test_cases: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
     finally:
-        if 'cur' in locals():
-            cur.close()
         if 'conn' in locals():
             conn.close()
 
