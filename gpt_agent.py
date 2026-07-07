@@ -400,17 +400,92 @@ class RiskAgent(Agent):
                 source='risk_agent',
                 title=None,
                 description=None,
-                user_persona=risk.get('user_persona'),
+                # agent emits capitalized 'User_persona'; reading 'user_persona'
+                # silently stored null. business_priority isn't emitted at all —
+                # store None, not the literal string 'None'.
+                user_persona=risk.get('User_persona'),
                 user_story=risk.get('user_story'),
                 functionality=risk.get('functionality'),
                 related_stories=None,
-                business_priority=str(risk.get('business_priority')),
+                business_priority=risk.get('business_priority'),
                 agent_output=risk,
                 embedding=None  # No embedding for risk analysis
             )
         if conn:
             conn.close()
         return risk_output_list
+
+
+# ── on-demand + cached real risk (P4) ────────────────────────────────────────
+
+def parse_risk_output(agent_output):
+    """Pull the real risk fields out of a RiskAgent output dict.
+
+    The agent emits capitalized keys ('Risk Factor', 'User_persona'); this is the
+    single place that shape is decoded, so callers never hardcode those keys.
+    """
+    agent_output = agent_output or {}
+    return {
+        "risk_factor": agent_output.get("Risk Factor"),
+        "persona": agent_output.get("User_persona"),
+    }
+
+
+def get_cached_risk(conn, requirement_id):
+    """Return the cached real risk for a requirement, or None if never computed."""
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT agent_output FROM central_vectors "
+            "WHERE story_number = %s AND source = 'risk_agent'",
+            (requirement_id,),
+        )
+        row = cur.fetchone()
+    if row is None or row[0] is None:
+        return None
+    return parse_risk_output(row[0])
+
+
+def get_or_compute_risk(conn, requirement_id, agent=None):
+    """Real RiskAgent risk for a requirement, computed on demand and cached.
+
+    Cache-hit serves the stored result with no LLM call; cache-miss runs the agent
+    (injectable for tests), caches the output in central_vectors, and returns it.
+
+    Raises:
+        LookupError: the requirement id does not exist.
+    """
+    cached = get_cached_risk(conn, requirement_id)
+    if cached is not None:
+        return {**cached, "source": "cached"}
+
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT user_story, description, functionality FROM requirements WHERE id = %s",
+            (requirement_id,),
+        )
+        row = cur.fetchone()
+    if row is None:
+        raise LookupError(f"requirement {requirement_id} not found")
+
+    story = {
+        "story_number": requirement_id,
+        "user_story": row[0] or "",
+        "description": row[1] or "",
+        "functionality": row[2] or "",
+    }
+    agent = agent or RiskAgent()
+    output = agent.run(user_stories=[story]) or []
+    raw = output[0] if output else {}
+
+    upsert_central_vector(
+        conn, story_number=requirement_id, source="risk_agent",
+        title=None, description=None,
+        user_persona=raw.get("User_persona"), user_story=raw.get("user_story"),
+        functionality=raw.get("functionality"), related_stories=None,
+        business_priority=raw.get("business_priority"), agent_output=raw, embedding=None,
+    )
+    return {**parse_risk_output(raw), "source": "computed"}
+
 
 # --- Utility Functions ---
 def get_requirements_from_kg():

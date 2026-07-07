@@ -6,7 +6,7 @@ import logging
 from database.embedding_utils import get_embedding
 from database.rag_utils import find_related_requirements
 from init_db import create_tables
-from gpt_agent import TestAgent, RelationAgent  # Add RelationAgent import
+from gpt_agent import TestAgent, RelationAgent, get_or_compute_risk, get_cached_risk
 
 app = FastAPI()
 
@@ -85,29 +85,31 @@ async def get_requirements():
         conn = get_pg_conn()
         cur = conn.cursor()
         
+        # risk_score = real cached RiskAgent output (central_vectors), NOT the old
+        # priority-proxy. LEFT JOIN so un-analyzed requirements come back as
+        # "Not assessed" rather than a priority-in-disguise number. No LLM here.
         cur.execute("""
-            SELECT 
+            SELECT
                 r.id,
                 r.user_story,
                 r.description,
                 r.functionality,
                 COALESCE(r.sprint, 'Not Set') as sprint,
-                CASE
-                    WHEN r.priority = 'High' THEN '10'
-                    WHEN r.priority = 'Medium' THEN '5'
-                    WHEN r.priority = 'Low' THEN '1'
-                    ELSE 'Not Assessed'
-                END as risk_score
+                (cv.agent_output->>'Risk Factor') as risk_factor
             FROM requirements r
+            LEFT JOIN central_vectors cv
+                ON cv.story_number = r.id AND cv.source = 'risk_agent'
         """)
-        
+
         rows = cur.fetchall()
         requirements = []
         for row in rows:
             risk_score = row[5]
-            if risk_score.isdigit():
+            if risk_score is not None and str(risk_score).isdigit():
                 risk_score = int(risk_score)
-                
+            else:
+                risk_score = "Not assessed"
+
             requirement = {
                 "id": row[0],
                 "user_story": row[1] or "",
@@ -175,18 +177,12 @@ async def get_requirement(requirement_id: int):
         cur = conn.cursor()
         
         cur.execute("""
-            SELECT 
+            SELECT
                 r.id,
                 r.user_story,
                 r.description,
                 r.functionality,
-                COALESCE(r.sprint, 'Not Set') as release,
-                CASE
-                    WHEN r.priority = 'High' THEN '10'
-                    WHEN r.priority = 'Medium' THEN '5'
-                    WHEN r.priority = 'Low' THEN '1'
-                    ELSE 'Not Assessed'
-                END as risk_score
+                COALESCE(r.sprint, 'Not Set') as release
             FROM requirements r
             WHERE id = %s;
         """, (requirement_id,))
@@ -195,9 +191,10 @@ async def get_requirement(requirement_id: int):
         if not row:
             raise HTTPException(status_code=404, detail="Requirement not found")
 
-        risk_score = row[5]
-        if isinstance(risk_score, str) and risk_score.isdigit():
-            risk_score = int(risk_score)
+        # Real cached RiskAgent risk (or "Not assessed" until /risk is run).
+        # A plain GET never triggers the LLM — computation happens on /risk only.
+        cached = get_cached_risk(conn, requirement_id)
+        risk_score = cached["risk_factor"] if cached and cached["risk_factor"] is not None else "Not assessed"
 
         requirement = {
             "id": row[0],
@@ -294,6 +291,26 @@ async def get_test_cases(requirement_id: int):
             cur.close()
         if 'conn' in locals():
             conn.close()
+
+@app.get("/requirements/{requirement_id}/risk")
+async def get_risk(requirement_id: int):
+    # The explicit "Analyze risk" trigger: computes real RiskAgent risk on a
+    # cache-miss and caches it; serves the cached result (no LLM) on a hit.
+    try:
+        conn = get_pg_conn()
+        try:
+            return get_or_compute_risk(conn, requirement_id)
+        except LookupError:
+            raise HTTPException(status_code=404, detail="Requirement not found")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error computing risk for {requirement_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if 'conn' in locals():
+            conn.close()
+
 
 # Initialize database tables when server starts
 @app.on_event("startup")
