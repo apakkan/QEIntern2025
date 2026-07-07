@@ -4,6 +4,9 @@ import os
 import re
 import requests
 import json
+import logging
+
+_logger = logging.getLogger(__name__)
 from database.embedding_utils import get_embedding
 from dotenv import load_dotenv
 
@@ -219,11 +222,35 @@ def insert_defects(conn, defects):
     conn.commit()
     cursor.close()
 
+def _normalize_int_array(value):
+    """Coerce a related_stories value into an int list for the INTEGER[] column.
+
+    RequirementAgent emits story references as strings, and psycopg2 renders a
+    string list as text[] — which clashes with central_vectors.related_stories
+    (integer[]). Numeric strings become ints; non-numeric refs (which cannot live
+    in an integer[] anyway) are dropped with a warning. ``None`` passes through.
+    """
+    if value is None:
+        return None
+    if not isinstance(value, (list, tuple)):
+        value = [value]  # tolerate a scalar; don't iterate a string into chars
+    normalized = []
+    for item in value:
+        try:
+            normalized.append(int(item))
+        except (ValueError, TypeError):
+            _logger.warning(
+                "upsert_central_vector: dropping non-integer related_stories ref %r", item
+            )
+    return normalized
+
+
 def upsert_central_vector(
     conn, story_number, source, title, description, user_persona, user_story,
     functionality, related_stories, business_priority, agent_output, embedding, kg_node_id=None
 ):
     cursor = conn.cursor()
+    related_stories = _normalize_int_array(related_stories)
     # Convert agent_output to JSON string if it's a dict
     if agent_output is not None and isinstance(agent_output, dict):
         agent_output = json.dumps(agent_output)
