@@ -90,7 +90,7 @@ async def get_requirements():
                 r.user_story,
                 r.description,
                 r.functionality,
-                COALESCE(r.release, 'Not Set') as sprint,
+                COALESCE(r.sprint, 'Not Set') as sprint,
                 CASE
                     WHEN r.priority = 'High' THEN '10'
                     WHEN r.priority = 'Medium' THEN '5'
@@ -135,21 +135,24 @@ async def create_requirement(requirement: dict):
     conn = get_pg_conn()
     cur = conn.cursor()
     try:
-        # Make sure to use the exact column names from your database schema
+        # Align to the actual requirements schema: title (NOT NULL), user_story,
+        # description, functionality, sprint, priority, status. The API's
+        # "release" field maps to the real "sprint" column; "model"/"project"
+        # have no columns and are not persisted.
         cur.execute("""
-            INSERT INTO requirements 
-            (id, user_story, description, functionality, release, priority, model, project)
+            INSERT INTO requirements
+            (id, title, user_story, description, functionality, sprint, priority, status)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id
         """, (
             requirement['id'],
-            requirement['user_story'],
-            requirement['description'],
-            requirement['functionality'],
-            requirement['release'],      # This matches the database column
-            requirement['priority'],     # This matches the database column
-            requirement['model'],
-            requirement['project']
+            requirement.get('title') or requirement.get('user_story') or 'Untitled',
+            requirement.get('user_story'),
+            requirement.get('description'),
+            requirement.get('functionality'),
+            requirement.get('release') or requirement.get('sprint'),
+            requirement.get('priority'),
+            requirement.get('status'),
         ))
         requirement_id = cur.fetchone()[0]
         conn.commit()
@@ -176,27 +179,25 @@ async def get_requirement(requirement_id: int):
                 r.user_story,
                 r.description,
                 r.functionality,
-                r.release,
+                COALESCE(r.sprint, 'Not Set') as release,
                 CASE
                     WHEN r.priority = 'High' THEN '10'
                     WHEN r.priority = 'Medium' THEN '5'
                     WHEN r.priority = 'Low' THEN '1'
                     ELSE 'Not Assessed'
-                END as risk_score,
-                r.model,
-                r.project
+                END as risk_score
             FROM requirements r
             WHERE id = %s;
         """, (requirement_id,))
-        
+
         row = cur.fetchone()
         if not row:
             raise HTTPException(status_code=404, detail="Requirement not found")
-            
+
         risk_score = row[5]
         if isinstance(risk_score, str) and risk_score.isdigit():
             risk_score = int(risk_score)
-            
+
         requirement = {
             "id": row[0],
             "user_story": row[1] or "",
@@ -204,8 +205,10 @@ async def get_requirement(requirement_id: int):
             "functionality": row[3] or "",
             "release": row[4] or "",
             "risk_score": risk_score,
-            "model": row[6] or "",
-            "project": row[7] or ""
+            # model/project have no column in the schema; kept as constants to
+            # preserve the API response shape the frontend expects.
+            "model": "OpenAI",
+            "project": "Project 1"
         }
         
         return requirement
@@ -231,7 +234,7 @@ async def get_related_stories(requirement_id: int):
                 user_story,
                 description,
                 COALESCE(functionality, '') as functionality,
-                COALESCE(project, 'Core System') as project
+                COALESCE(sprint, 'Core System') as project
             FROM requirements 
             WHERE id = %s
         """, (requirement_id,))
@@ -253,12 +256,12 @@ async def get_related_stories(requirement_id: int):
                 user_story,
                 description,
                 COALESCE(functionality, '') as functionality,
-                COALESCE(project, 'Core System') as project
+                COALESCE(sprint, 'Core System') as project
             FROM requirements 
             WHERE id != %s
             AND (
-                COALESCE(functionality, '') = %s 
-                OR COALESCE(project, 'Core System') = %s
+                COALESCE(functionality, '') = %s
+                OR COALESCE(sprint, 'Core System') = %s
             )
             LIMIT 5
         """, (requirement_id, current_functionality, current_project))

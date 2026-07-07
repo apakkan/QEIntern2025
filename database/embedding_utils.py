@@ -15,10 +15,9 @@ def get_openai_client():
     global _client
     if _client is None:
         # Initialize the Azure OpenAI client with credentials from environment variables
-        _client = openai.AzureOpenAI(
+        _client = openai.OpenAI(
             api_key=os.environ["OPENAI_EMBEDDING_API_KEY"],
-            api_version=os.environ["OPENAI_EMBEDDING_API_VERSION"],
-            azure_endpoint=os.environ["OPENAI_EMBEDDING_API_BASE"]
+            base_url=os.environ["OPENAI_EMBEDDING_API_BASE"]
         )
     return _client
 

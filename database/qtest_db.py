@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # ==== Global Constants ====
-OPENAI_EMBEDDING_DIM = 1536  # Dimension of OpenAI embeddings
+OPENAI_EMBEDDING_DIM = int(os.getenv("OPENAI_EMBEDDING_DIM", "1536"))  # embedding vector width; must match the embedding model (Mistral mistral-embed = 1024)
 DEFAULT_PAGE_SIZE = 20       # Default page size for API pagination
 MAX_PAGES = 100              # Max number of pages to fetch from API
 RETRY_COUNT = 5              # Number of DB connection retries

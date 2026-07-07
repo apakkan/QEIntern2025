@@ -2,7 +2,7 @@
 import json
 import os
 from functools import lru_cache
-from openai import AzureOpenAI as OpenAIAzureClient
+from openai import OpenAI as OpenAIClient
 from dotenv import load_dotenv
 from agno.agent import Agent
 from agno.tools import tool
@@ -23,10 +23,9 @@ DEPLOYMENT_NAME = os.getenv("DEPLOYMENT_NAME")
 
 @lru_cache(maxsize=1)
 def _get_client():
-    return OpenAIAzureClient(
+    return OpenAIClient(
         api_key=os.getenv("API_KEY"),
-        api_version=os.getenv("API_VERSION"),
-        azure_endpoint=os.getenv("ENDPOINT"),
+        base_url=os.getenv("ENDPOINT"),
     )
 
 @lru_cache(maxsize=1)
