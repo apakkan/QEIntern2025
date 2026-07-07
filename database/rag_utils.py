@@ -57,3 +57,58 @@ def find_similar_requirements(conn, query_embedding, top_k=3):
         )
         results = cursor.fetchall()
     return results
+
+
+def _relationship_score(distance):
+    """Map a pgvector COSINE distance to a 0-100 relationship score.
+
+    Cosine distance is 0 for identical direction and grows as vectors diverge
+    (1 = orthogonal). similarity% = (1 - distance) * 100, clamped to [0, 100].
+    General: no dataset-specific thresholds — the same formula holds for any data.
+    """
+    return max(0, min(100, round((1.0 - float(distance)) * 100)))
+
+
+def find_related_requirements(conn, requirement_id, top_k=5):
+    """Return the top_k requirements most semantically similar to ``requirement_id``.
+
+    Universal: nearest neighbours by embedding COSINE distance over whatever is in
+    the table — no hardcoded ids/sprints/functionality. The target itself is excluded
+    by value, and rows without an embedding are skipped.
+
+    Raises:
+        LookupError: the target requirement id does not exist.
+    Returns:
+        list[dict] of {id, name, description, relationship}; empty when the target
+        has no embedding (nothing to compare against).
+    """
+    with conn.cursor() as cursor:
+        cursor.execute("SELECT embedding::text FROM requirements WHERE id = %s", (requirement_id,))
+        row = cursor.fetchone()
+        if row is None:
+            raise LookupError(f"requirement {requirement_id} not found")
+        target_embedding = row[0]
+        if target_embedding is None:
+            return []
+
+        cursor.execute(
+            """
+            SELECT id, title, description, embedding <=> %s::vector AS distance
+            FROM requirements
+            WHERE id != %s AND embedding IS NOT NULL
+            ORDER BY embedding <=> %s::vector
+            LIMIT %s
+            """,
+            (target_embedding, requirement_id, target_embedding, top_k),
+        )
+        rows = cursor.fetchall()
+
+    return [
+        {
+            "id": r[0],
+            "name": r[1] or "Untitled",
+            "description": r[2] or "No description",
+            "relationship": _relationship_score(r[3]),
+        }
+        for r in rows
+    ]

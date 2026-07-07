@@ -4,6 +4,7 @@ import psycopg2
 import os
 import logging
 from database.embedding_utils import get_embedding
+from database.rag_utils import find_related_requirements
 from init_db import create_tables
 from gpt_agent import TestAgent, RelationAgent  # Add RelationAgent import
 
@@ -224,78 +225,25 @@ async def get_requirement(requirement_id: int):
 
 @app.get("/requirements/{requirement_id}/related-stories")
 async def get_related_stories(requirement_id: int):
+    # Semantic similarity over the requirement embeddings (pgvector cosine) — returns
+    # genuinely related tickets for ANY data. Replaces the old functionality/sprint
+    # exact-match, which returned the same arbitrary rows because the functionality
+    # column is left empty at ingest.
     try:
         conn = get_pg_conn()
-        cur = conn.cursor()
-        
-        # First verify the requirement exists and get its details
-        cur.execute("""
-            SELECT 
-                user_story,
-                description,
-                COALESCE(functionality, '') as functionality,
-                COALESCE(sprint, 'Core System') as project
-            FROM requirements 
-            WHERE id = %s
-        """, (requirement_id,))
-        
-        current_req = cur.fetchone()
-        if not current_req:
+        try:
+            related_stories = find_related_requirements(conn, requirement_id, top_k=5)
+        except LookupError:
             logger.error(f"Requirement {requirement_id} not found")
             raise HTTPException(status_code=404, detail="Requirement not found")
-        
-        current_functionality = current_req[2]
-        current_project = current_req[3]
-        
-        logger.info(f"Finding stories related to functionality '{current_functionality}' and project '{current_project}'")
-        
-        # Find related stories with NULL handling
-        cur.execute("""
-            SELECT 
-                id,
-                user_story,
-                description,
-                COALESCE(functionality, '') as functionality,
-                COALESCE(sprint, 'Core System') as project
-            FROM requirements 
-            WHERE id != %s
-            AND (
-                COALESCE(functionality, '') = %s
-                OR COALESCE(sprint, 'Core System') = %s
-            )
-            LIMIT 5
-        """, (requirement_id, current_functionality, current_project))
-        
-        related = cur.fetchall()
-        related_stories = []
-        
-        for row in related:
-            # Calculate relationship score
-            relationship_score = 0
-            if row[3] == current_functionality and current_functionality:
-                relationship_score += 80
-            if row[4] == current_project:
-                relationship_score += 60
-            
-            relationship_score = min(relationship_score, 100)
-            
-            story = {
-                "id": row[0],
-                "name": row[1] or "Untitled",
-                "description": row[2] or "No description",
-                "relationship": relationship_score
-            }
-            related_stories.append(story)
-        
-        logger.info(f"Found {len(related_stories)} related stories")
+        logger.info(f"Found {len(related_stories)} related stories for {requirement_id}")
         return related_stories
-        
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error finding related stories: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
     finally:
-        if 'cur' in locals():
-            cur.close()
         if 'conn' in locals():
             conn.close()
 
